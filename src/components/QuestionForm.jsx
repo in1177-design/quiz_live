@@ -39,7 +39,7 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
     }
   }
 
-  const valid = q.text.trim() && q.options.every((o) => o.trim());
+  const valid = !q.uploading && !q.uploadingAnswer;
 
   return (
     <div className="card" style={{ padding: 22 }}>
