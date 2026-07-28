@@ -11,6 +11,18 @@ import ImageUploadField from '../components/ImageUploadField.jsx';
 import { compressImage } from '../utils/compressImage.js';
 import { generateId, generatePin } from '../utils/ids.js';
 
+function useIsMobile(breakpoint = 700) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= breakpoint);
+  useEffect(() => {
+    function onResize() {
+      setIsMobile(window.innerWidth <= breakpoint);
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 const emptyQuestion = () => ({
   id: generateId(),
   text: '',
@@ -26,6 +38,8 @@ const emptyQuestion = () => ({
 });
 
 function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown }) {
+  const isMobile = useIsMobile();
+
   async function handleImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -99,6 +113,26 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
               )}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1000, overflowY: 'auto', background: 'var(--bg-1)',
+        backgroundImage: 'radial-gradient(1200px 800px at 15% -10%, var(--bg-3), transparent), radial-gradient(1000px 700px at 110% 10%, #4c1d95aa, transparent)',
+      }}>
+        <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 40px' }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <button type="button" onClick={onDelete} title="מחיקה" style={{ border: '1px solid var(--border)', borderRadius: 10, width: 44, height: 44, background: 'none', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrashIcon size={20} /></button>
+            <button type="button" onClick={onCancelEdit} title="ביטול עריכה" style={{ border: '1px solid var(--border)', borderRadius: 10, width: 44, height: 44, background: 'none', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><EditIcon size={20} /></button>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <ImageUploadField id={`qimg-mobile-${q.id}`} imageURL={q.imageURL} uploading={q.uploading} onUpload={handleImage} height={180} radius={16} />
+          </div>
+          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} hideQuestionImage bare />
         </div>
       </div>
     );
