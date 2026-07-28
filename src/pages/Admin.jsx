@@ -6,6 +6,8 @@ import { db, storage } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import PreviewModal from '../components/PreviewModal.jsx';
 import QuestionForm from '../components/QuestionForm.jsx';
+import { ImageIcon, PlusIcon, EyeIcon, TrashIcon, EditIcon, PlayIcon, CheckIcon, ChevronUpCircleIcon, ChevronDownCircleIcon, SettingsIcon } from '../components/icons.jsx';
+import ImageUploadField from '../components/ImageUploadField.jsx';
 import { compressImage } from '../utils/compressImage.js';
 import { generateId, generatePin } from '../utils/ids.js';
 
@@ -23,45 +25,116 @@ const emptyQuestion = () => ({
   uploadingAnswer: false,
 });
 
-function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onPreview, onMoveUp, onMoveDown }) {
+function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown }) {
+  async function handleImage(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onChange({ ...q, uploading: true });
+    try {
+      const blob = await compressImage(file, { maxDim: 1400, quality: 0.85 });
+      const path = `questions/${quizId}/${q.id}.jpg`;
+      const storageRef = sRef(storage, path);
+      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+      const url = await getDownloadURL(storageRef);
+      onChange({ ...q, imageURL: url, uploading: false });
+    } catch (err) {
+      console.error(err);
+      alert('העלאת התמונה נכשלה');
+      onChange({ ...q, uploading: false });
+    }
+  }
+
+  const arrowsColumn = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0 }}>
+      <button type="button" onClick={onMoveUp} title="הזז למעלה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: index === 0 ? 0.35 : 1 }} disabled={index === 0}><ChevronUpCircleIcon size={24} /></button>
+      <div style={{ fontWeight: 700, fontSize: 22 }}>{index + 1}</div>
+      <button type="button" onClick={onMoveDown} title="הזז למטה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: index === total - 1 ? 0.35 : 1 }} disabled={index === total - 1}><ChevronDownCircleIcon size={24} /></button>
+    </div>
+  );
+
+  const imageColumn = (
+    <div style={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+      {q.saved ? (
+        q.imageURL ? (
+          <img src={q.imageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
+        ) : (
+          <div style={{ width: '100%', height: 100, borderRadius: 12, background: 'var(--surface-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={26} /></div>
+        )
+      ) : (
+        <ImageUploadField id={`qimg-${q.id}`} imageURL={q.imageURL} uploading={q.uploading} onUpload={handleImage} radius={12} />
+      )}
+      {q.saved && (
+        <button type="button" className="btn btn-secondary" disabled={!q.options?.some((o) => o.trim())} onClick={onPreview} style={{ width: '100%', fontSize: 13, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><EyeIcon size={18} /> תצוגה מקדימה</button>
+      )}
+    </div>
+  );
+
   if (q.saved) {
     return (
-      <div className="card" style={{ padding: 20 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>{q.text}</div>
-            <div style={{ color: `var(--opt-${q.correctIndex})`, fontWeight: 600, marginBottom: q.answerExplanation ? 10 : 0 }}>
-              ✅ {q.options[q.correctIndex]}
-            </div>
-            {q.answerExplanation && (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>הסבר לתשובה:</div>
-                <div className="dim" style={{ fontSize: 14 }}>{q.answerExplanation}</div>
-              </>
+      <div className="card" style={{ padding: 24, display: 'flex', gap: 16 }}>
+        {arrowsColumn}
+        {imageColumn}
+
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+            <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 18, textAlign: 'right' }}>{q.text}</div>
+            <button type="button" className="btn btn-secondary" onClick={onEdit} style={{ fontSize: 14, padding: '10px 18px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}><EditIcon size={18} /> עריכת שאלה</button>
+            <button type="button" className="btn btn-secondary" onClick={onDelete} title="מחיקה" style={{ padding: '10px 16px' }}><TrashIcon size={20} /></button>
+          </div>
+
+          <div style={{ background: 'rgba(37,32,68,0.7)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {q.answerImageURL && (
+              <img src={q.answerImageURL} alt="" style={{ width: 150, height: 100, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
             )}
+            <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0, color: `var(--opt-${q.correctIndex})`, fontWeight: 700, fontSize: 15, textAlign: 'right' }}>{q.options[q.correctIndex]}</div>
+                <div style={{ flexShrink: 0, color: '#22c55e', display: 'flex' }}><CheckIcon size={20} /></div>
+              </div>
+              {q.answerExplanation && (
+                <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', textAlign: 'right' }}>
+                  <div className="dim" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>הסבר לתשובה:</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{q.answerExplanation}</div>
+                </div>
+              )}
+            </div>
           </div>
-          {q.imageURL && (
-            <img src={q.imageURL} alt="" style={{ width: 150, height: 100, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <button type="button" className="btn-secondary" disabled={index === 0} onClick={onMoveUp} title="הזז למעלה" style={{ border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'var(--text)' }}>▲</button>
-            <div style={{ fontWeight: 700, fontSize: 20, color: 'var(--accent)' }}>{index + 1}</div>
-            <button type="button" className="btn-secondary" disabled={index === total - 1} onClick={onMoveDown} title="הזז למטה" style={{ border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'var(--text)' }}>▼</button>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="btn btn-secondary" onClick={onPreview}>👁 תצוגה מקדימה</button>
-          <button type="button" className="btn btn-secondary" onClick={onDelete}>מחיקה</button>
-          <button type="button" className="btn btn-secondary" onClick={onEdit}>עריכת שאלה</button>
         </div>
       </div>
     );
   }
 
-  return <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמור שאלה" title={`שאלה ${index + 1}`} />;
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{
+        background: '#2c2251', border: '2px solid #b288ff', borderBottom: 'none', borderRadius: '24px 24px 0 0',
+        padding: 24, display: 'flex', gap: 16,
+      }}>
+        {arrowsColumn}
+        {imageColumn}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} hideQuestionImage section="top" />
+        </div>
+      </div>
+      <div style={{
+        background: '#1a1531', border: '2px solid #b288ff', borderTop: 'none', borderRadius: '0 0 24px 24px',
+        boxShadow: '0 16px 32px rgba(0,0,0,0.5)', padding: 32,
+      }}>
+        <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} section="bottom" />
+      </div>
+    </div>
+  );
 }
 
-function QuizBuilder({ onDone, existingQuiz }) {
+function cleanQuestion({ text, options, correctIndex, timeLimit, imageURL, answerImageURL, answerExplanation }) {
+  return {
+    text, options, correctIndex, timeLimit, imageURL: imageURL || null, answerImageURL: answerImageURL || null,
+    answerExplanation: answerExplanation || null,
+  };
+}
+
+function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
+  const navigate = useNavigate();
   const [quizId] = useState(() => existingQuiz?.id || generateId());
   const [title, setTitle] = useState(existingQuiz?.title || '');
   const [coverImageURL, setCoverImageURL] = useState(existingQuiz?.coverImageURL || '');
@@ -75,6 +148,7 @@ function QuizBuilder({ onDone, existingQuiz }) {
       : [emptyQuestion()]
   );
   const [previewIndex, setPreviewIndex] = useState(null);
+  const [launching, setLaunching] = useState(false);
 
   function updateQuestion(idx, updated) {
     setQuestions((qs) => qs.map((q, i) => (i === idx ? updated : q)));
@@ -85,7 +159,14 @@ function QuizBuilder({ onDone, existingQuiz }) {
   }
 
   function editQuestion(idx) {
-    setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, saved: false } : q)));
+    setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, saved: false, _snapshot: { ...q } } : q)));
+  }
+
+  function cancelEditQuestion(idx) {
+    setQuestions((qs) => qs.map((q, i) => {
+      if (i !== idx) return q;
+      return q._snapshot ? { ...q._snapshot, saved: true } : emptyQuestion();
+    }));
   }
 
   function deleteQuestion(idx) {
@@ -134,31 +215,80 @@ function QuizBuilder({ onDone, existingQuiz }) {
       title: title.trim(),
       createdAt: Date.now(),
       coverImageURL: coverImageURL || null,
-      questions: questions.map(({ text, options, correctIndex, timeLimit, imageURL, answerImageURL, answerExplanation }) => ({
-        text, options, correctIndex, timeLimit, imageURL: imageURL || null, answerImageURL: answerImageURL || null,
-        answerExplanation: answerExplanation || null,
-      })),
+      questions: questions.map(cleanQuestion),
     });
     onDone();
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 640 }}>
-      <input
-        className="input"
-        style={{ width: '100%', fontSize: 20, fontWeight: 700 }}
-        placeholder="שם החידון"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
+  async function handleLaunch() {
+    setLaunching(true);
+    try {
+      let pin = generatePin();
+      for (let i = 0; i < 5; i++) {
+        const snap = await get(ref(db, `sessions/${pin}`));
+        if (!snap.exists()) break;
+        pin = generatePin();
+      }
+      await set(ref(db, `sessions/${pin}`), {
+        quizId,
+        quiz: { title: title.trim(), questions: questions.filter((q) => q.saved).map(cleanQuestion), coverImageURL: coverImageURL || null },
+        status: 'lobby',
+        currentIndex: -1,
+        questionStartedAt: null,
+        showWhoChose: false,
+        createdAt: Date.now(),
+      });
+      localStorage.setItem('quiz_presenter_pin', pin);
+      sessionStorage.setItem('quiz_admin_ok', '1');
+      navigate('/present');
+    } finally {
+      setLaunching(false);
+    }
+  }
 
-      <div className="card" style={{ padding: 18 }}>
-        <input type="file" accept="image/*" id="cover-image" style={{ display: 'none' }} onChange={handleCoverImage} />
-        <label htmlFor="cover-image" className="btn btn-secondary" style={{ display: 'inline-block', cursor: 'pointer' }}>
-          {uploadingCover ? 'מעלה תמונה...' : coverImageURL ? '🖼️ החלפת תמונה ראשית' : '🖼️ העלאת תמונה ראשית (מסך פתיחה, אופציונלי)'}
-        </label>
-        <div className="dim" style={{ fontSize: 13, marginTop: 6 }}>תוצג במסך המנחה בזמן שממתינים שהמשחק יתחיל</div>
-        {coverImageURL && <img src={coverImageURL} alt="" style={{ display: 'block', marginTop: 10, maxWidth: 300, borderRadius: 10 }} />}
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 1000 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ fontSize: 14 }}>
+          <span className="dim">ניהול חידונים</span>
+          <span className="dim"> / </span>
+          <span className="dim" style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={onBackToList}>החידונים שלי</span>
+          <span className="dim"> / </span>
+          <span style={{ color: '#b288ff', fontWeight: 700 }}>{title.trim() || 'חידון חדש'}</span>
+        </div>
+        <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>הוסף שאלה חדשה</span>
+          <PlusIcon size={22} />
+        </button>
+      </div>
+
+      <div style={{ padding: 24, borderRadius: 16, border: '1px solid #342e5b', background: '#2c2251' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <SettingsIcon size={18} />
+          <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>עריכת הגדרות חידון</span>
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ width: 188, flexShrink: 0 }}>
+            <ImageUploadField id="cover-image" imageURL={coverImageURL} uploading={uploadingCover} onUpload={handleCoverImage} height={125} radius={12} />
+          </div>
+
+          <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'center' }}>
+            <input
+              className="input"
+              style={{ width: '100%', fontSize: 20, fontWeight: 700, textAlign: 'right' }}
+              placeholder="שם החידון"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <div className="dim" style={{ fontSize: 14, fontWeight: 600, textAlign: 'right' }}>{questions.length} שאלות</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-secondary" disabled={!savedCount} onClick={() => setPreviewIndex(0)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EyeIcon size={19} /> תצוגה מקדימה</button>
+              <button type="button" className="btn" disabled={!savedCount || launching} onClick={handleLaunch} style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {launching ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {questions.map((q, idx) => (
@@ -172,14 +302,15 @@ function QuizBuilder({ onDone, existingQuiz }) {
           onSave={() => saveQuestion(idx)}
           onEdit={() => editQuestion(idx)}
           onDelete={() => deleteQuestion(idx)}
+          onCancelEdit={() => cancelEditQuestion(idx)}
           onPreview={() => setPreviewIndex(idx)}
           onMoveUp={() => moveQuestion(idx, -1)}
           onMoveDown={() => moveQuestion(idx, 1)}
         />
       ))}
 
-      <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion}>
-        + הוסף שאלה הבאה
+      <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <PlusIcon size={22} /> הוסף שאלה הבאה
       </button>
 
       <button type="button" className="btn" disabled={!canSaveQuiz} onClick={saveQuiz} style={{ fontSize: 18 }}>
@@ -191,6 +322,7 @@ function QuizBuilder({ onDone, existingQuiz }) {
           questions={questions}
           startIndex={previewIndex}
           quizId={quizId}
+          quizTitle={title.trim() || 'חידון חדש'}
           onSaveQuestion={(idx, updated) => updateQuestion(idx, updated)}
           onClose={() => setPreviewIndex(null)}
         />
@@ -199,7 +331,7 @@ function QuizBuilder({ onDone, existingQuiz }) {
   );
 }
 
-function QuizList({ quizzes, onEdit }) {
+function QuizList({ quizzes, onEdit, onAddNew }) {
   const [previewQuiz, setPreviewQuiz] = useState(null);
   const [launching, setLaunching] = useState(null);
   const navigate = useNavigate();
@@ -258,22 +390,36 @@ function QuizList({ quizzes, onEdit }) {
     ]);
   }
 
-  if (!quizzes.length) return <div className="dim">עדיין אין חידונים שמורים.</div>;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+    <div style={{ width: '100%', maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ fontSize: 14 }}>
+          <span className="dim">ניהול חידונים</span>
+          <span className="dim"> / </span>
+          <span style={{ color: '#b288ff', fontWeight: 700 }}>החידונים שלי</span>
+        </div>
+        <button type="button" className="btn btn-secondary" onClick={onAddNew} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>הוסף חידון חדש</span>
+          <PlusIcon size={22} />
+        </button>
+      </div>
+
+      {!quizzes.length ? (
+        <div className="dim">עדיין אין חידונים שמורים.</div>
+      ) : (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
       {quizzes.map((q, idx) => (
         <div key={q.id} className="card" style={{ padding: 24, display: 'flex', alignItems: 'stretch', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
-            <button type="button" className="btn-secondary" disabled={idx === 0} onClick={() => moveQuiz(idx, -1)} title="הזז למעלה" style={{ border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'var(--text)' }}>▲</button>
-            <button type="button" className="btn-secondary" disabled={idx === quizzes.length - 1} onClick={() => moveQuiz(idx, 1)} title="הזז למטה" style={{ border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'var(--text)' }}>▼</button>
+            <button type="button" disabled={idx === 0} onClick={() => moveQuiz(idx, -1)} title="הזז למעלה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === 0 ? 0.35 : 1 }}><ChevronUpCircleIcon size={24} /></button>
+            <button type="button" disabled={idx === quizzes.length - 1} onClick={() => moveQuiz(idx, 1)} title="הזז למטה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === quizzes.length - 1 ? 0.35 : 1 }}><ChevronDownCircleIcon size={24} /></button>
           </div>
 
           <div style={{ width: 160, flexShrink: 0, position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1280 / 850', background: 'var(--surface-strong)' }}>
             {q.coverImageURL ? (
               <img src={q.coverImageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🖼️</div>
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={32} /></div>
             )}
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -281,8 +427,8 @@ function QuizList({ quizzes, onEdit }) {
             }}>
               <div style={{
                 width: 40, height: 40, borderRadius: '50%', background: 'rgba(0,0,0,0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16,
-              }}>▶</div>
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+              }}><PlayIcon size={20} /></div>
             </div>
           </div>
 
@@ -292,35 +438,39 @@ function QuizList({ quizzes, onEdit }) {
               <div className="dim" style={{ fontSize: 14, fontWeight: 600 }}>{q.questions?.length || 0} שאלות</div>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => onEdit(q)}>✎ עריכה / הוספת שאלות</button>
+              <button type="button" className="btn btn-secondary" onClick={() => onEdit(q)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EditIcon size={18} /> עריכה / הוספת שאלות</button>
               <button
                 type="button"
                 className="btn btn-secondary"
                 disabled={!q.questions?.length}
                 onClick={() => setPreviewQuiz(q)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                👁 תצוגה מקדימה
+                <EyeIcon size={19} /> תצוגה מקדימה
               </button>
               <button
                 type="button"
                 className="btn"
                 disabled={!q.questions?.length || launching === q.id}
                 onClick={() => handleLaunch(q)}
-                style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)' }}
+                style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                {launching === q.id ? 'מפעיל...' : '▶ הפעל חידון'}
+                {launching === q.id ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
               </button>
-              <button type="button" className="btn btn-secondary" onClick={() => handleDelete(q.id)} title="מחיקה" style={{ padding: '10px 16px' }}>🗑</button>
+              <button type="button" className="btn btn-secondary" onClick={() => handleDelete(q.id)} title="מחיקה" style={{ padding: '10px 16px' }}><TrashIcon size={20} /></button>
             </div>
           </div>
         </div>
       ))}
+      </div>
+      )}
 
       {previewQuiz && (
         <PreviewModal
           questions={previewQuiz.questions}
           startIndex={0}
           quizId={previewQuiz.id}
+          quizTitle={previewQuiz.title}
           onSaveQuestion={handleSaveQuestion}
           onClose={() => setPreviewQuiz(null)}
         />
@@ -353,36 +503,18 @@ function AdminInner() {
     setMode('builder');
   }
 
-  const listWidth = mode === 'list' ? 1000 : 640;
-
   return (
     <div className="screen">
-      <div style={{ width: '100%', maxWidth: listWidth, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ width: '100%', maxWidth: 1000, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Link to="/" className="dim" style={{ textDecoration: 'none' }}>← חזרה</Link>
         <div className="title" style={{ fontSize: 26 }}>⚙️ ניהול חידונים</div>
         <div style={{ width: 60 }} />
       </div>
 
       {mode === 'list' ? (
-        <div style={{ width: '100%', maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ fontSize: 14 }}>
-              <span className="dim">ניהול חידונים</span>
-              <span className="dim"> / </span>
-              <span style={{ color: '#b288ff', fontWeight: 700 }}>החידונים שלי</span>
-            </div>
-            <button type="button" className="btn btn-secondary" onClick={startNew} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>הוסף חידון חדש</span>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
-            </button>
-          </div>
-          <QuizList quizzes={quizzes} onEdit={startEdit} />
-        </div>
+        <QuizList quizzes={quizzes} onEdit={startEdit} onAddNew={startNew} />
       ) : (
-        <div style={{ width: '100%', maxWidth: 640 }}>
-          <button type="button" className="btn btn-secondary" style={{ marginBottom: 20 }} onClick={() => setMode('list')}>→ חזרה לרשימה</button>
-          <QuizBuilder key={editingQuiz?.id || 'new'} existingQuiz={editingQuiz} onDone={() => setMode('list')} />
-        </div>
+        <QuizBuilder key={editingQuiz?.id || 'new'} existingQuiz={editingQuiz} onDone={() => setMode('list')} onBackToList={() => setMode('list')} />
       )}
     </div>
   );

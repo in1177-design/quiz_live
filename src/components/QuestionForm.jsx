@@ -1,8 +1,22 @@
 import { ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase.js';
 import { compressImage } from '../utils/compressImage.js';
+import ImageUploadField from './ImageUploadField.jsx';
+import { CheckIcon } from './icons.jsx';
 
-export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, onCancel, title }) {
+const lightBoxStyle = {
+  background: '#e1ddff',
+  color: '#252044',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+  padding: '14px 16px',
+  fontSize: 16,
+  fontWeight: 600,
+  textAlign: 'right',
+  outline: 'none',
+};
+
+export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, onCancel, hideQuestionImage, bare, section }) {
   async function handleImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -41,39 +55,46 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
 
   const valid = !q.uploading && !q.uploadingAnswer;
 
-  return (
-    <div className="card" style={{ padding: 22 }}>
-      {title && (
-        <div style={{ fontWeight: 600, fontSize: 16, letterSpacing: 1, marginBottom: 16 }}>{title}</div>
-      )}
-
+  const topContent = (
+    <>
       <input
-        className="input"
-        style={{ width: '100%', marginBottom: 16 }}
+        style={{ ...lightBoxStyle, width: '100%', marginBottom: 16 }}
         placeholder="טקסט השאלה"
         value={q.text}
         onChange={(e) => onChange({ ...q, text: e.target.value })}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
-        <div>
-          <input type="file" accept="image/*" id={`img-${q.id}`} style={{ display: 'none' }} onChange={handleImage} />
-          <label htmlFor={`img-${q.id}`} className="btn btn-secondary" style={{ display: 'inline-block', cursor: 'pointer', width: '100%', textAlign: 'center' }}>
-            {q.uploading ? 'מעלה תמונה...' : q.imageURL ? '🖼️ החלפת תמונה' : '🖼️ העלאת תמונה (אופציונלי)'}
-          </label>
-          <div className="dim" style={{ fontSize: 13, marginTop: 6 }}>תמונה נוספת שתופיע רק במסך חשיפת התשובה הנכונה</div>
-          {q.imageURL && <img src={q.imageURL} alt="" style={{ display: 'block', marginTop: 10, maxWidth: '100%', borderRadius: 10 }} />}
+      <div style={{ background: 'rgba(37,32,68,0.7)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 16, marginBottom: hideQuestionImage ? 0 : 16, flexWrap: 'wrap' }}>
+        <div style={{ width: 150, flexShrink: 0 }}>
+          <ImageUploadField id={`img-answer-${q.id}`} imageURL={q.answerImageURL} uploading={q.uploadingAnswer} onUpload={handleAnswerImage} />
         </div>
 
-        <div>
-          <input type="file" accept="image/*" id={`img-answer-${q.id}`} style={{ display: 'none' }} onChange={handleAnswerImage} />
-          <label htmlFor={`img-answer-${q.id}`} className="btn btn-secondary" style={{ display: 'inline-block', cursor: 'pointer', width: '100%', textAlign: 'center' }}>
-            {q.uploadingAnswer ? 'מעלה תמונה...' : q.answerImageURL ? '🖼️ החלפת תמונת חשיפה' : '🖼️ תמונה למסך התשובה (אופציונלי)'}
-          </label>
-          {q.answerImageURL && <img src={q.answerImageURL} alt="" style={{ display: 'block', marginTop: 10, maxWidth: '100%', borderRadius: 10 }} />}
+        <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ background: '#252044', border: '1px solid rgba(62,55,110,0.93)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0, color: `var(--opt-${q.correctIndex})`, fontWeight: 700, fontSize: 15, textAlign: 'right' }}>
+              {q.options[q.correctIndex]?.trim() || `תשובה ${q.correctIndex + 1}`}
+            </div>
+            <div style={{ flexShrink: 0, color: '#22c55e', display: 'flex' }}><CheckIcon size={20} /></div>
+          </div>
+          <textarea
+            style={{ ...lightBoxStyle, width: '100%', minHeight: 70, resize: 'vertical', fontFamily: 'inherit', fontSize: 14 }}
+            placeholder="הסבר לתשובה (אופציונלי) — יופיע במסך חשיפת התשובה"
+            value={q.answerExplanation}
+            onChange={(e) => onChange({ ...q, answerExplanation: e.target.value })}
+          />
         </div>
       </div>
 
+      {!hideQuestionImage && (
+        <div style={{ width: 150, marginTop: 16 }}>
+          <ImageUploadField id={`img-${q.id}`} imageURL={q.imageURL} uploading={q.uploading} onUpload={handleImage} />
+        </div>
+      )}
+    </>
+  );
+
+  const bottomContent = (
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
         {q.options.map((opt, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -86,8 +107,7 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
               style={{ width: 22, height: 22, flexShrink: 0, accentColor: 'var(--accent)' }}
             />
             <input
-              className="input"
-              style={{ width: '100%', borderInlineStart: `4px solid var(--opt-${i})` }}
+              style={{ ...lightBoxStyle, width: '100%', borderInlineStart: `4px solid var(--opt-${i})` }}
               placeholder={`תשובה ${i + 1}`}
               value={opt}
               onChange={(e) => {
@@ -98,16 +118,6 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
             />
           </div>
         ))}
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <textarea
-          className="input"
-          style={{ width: '100%', minHeight: 80, resize: 'vertical', fontFamily: 'inherit' }}
-          placeholder="כתוב כאן תשובה מורחבת לתצוגה"
-          value={q.answerExplanation}
-          onChange={(e) => onChange({ ...q, answerExplanation: e.target.value })}
-        />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
@@ -135,6 +145,16 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
           )}
         </div>
       </div>
+    </>
+  );
+
+  if (section === 'top') return topContent;
+  if (section === 'bottom') return bottomContent;
+
+  return (
+    <div className={bare ? undefined : 'card'} style={bare ? undefined : { padding: 22 }}>
+      {topContent}
+      {bottomContent}
     </div>
   );
 }

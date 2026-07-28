@@ -3,8 +3,9 @@ import Timer from './Timer.jsx';
 import BarChart from './BarChart.jsx';
 import AnswerTiles from './AnswerTiles.jsx';
 import QuestionForm from './QuestionForm.jsx';
+import { CheckIcon, EditIcon } from './icons.jsx';
 
-export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, onSaveQuestion }) {
+export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion }) {
   const [index, setIndex] = useState(startIndex);
   const [revealed, setRevealed] = useState(false);
   const [draft, setDraft] = useState(null);
@@ -37,9 +38,20 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
         backgroundImage: 'radial-gradient(1200px 800px at 15% -10%, var(--bg-3), transparent), radial-gradient(1000px 700px at 110% 10%, #4c1d95aa, transparent)',
       }}
     >
-      <div style={{ width: '100%', maxWidth: 1400, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span className="dim">תצוגה מקדימה — שאלה {index + 1} מתוך {questions.length} · {draft ? '✏️ עריכה' : revealed ? '🖥️ מסך תשובה (גרף)' : '🖥️ מסך שאלה'}</span>
-        <button className="btn btn-secondary" style={{ padding: '6px 14px' }} onClick={onClose}>✕ סגירה</button>
+      <div style={{ width: '100%', maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div style={{ fontSize: 14 }}>
+            <span className="dim">ניהול חידונים</span>
+            <span className="dim"> / </span>
+            <span className="dim">החידונים שלי</span>
+            <span className="dim"> / </span>
+            <span className="dim">{quizTitle || 'חידון'}</span>
+            <span className="dim"> / </span>
+            <span style={{ color: '#b288ff', fontWeight: 700 }}>תצוגה מקדימה</span>
+          </div>
+          <button className="btn btn-secondary" style={{ padding: '6px 14px' }} onClick={onClose}>✕ סגירה</button>
+        </div>
+        <span className="dim" style={{ fontSize: 13 }}>שאלה {index + 1} מתוך {questions.length} · {draft ? '✏️ עריכה' : revealed ? '🖥️ מסך תשובה (גרף)' : '🖥️ מסך שאלה'}</span>
       </div>
 
       {draft ? (
@@ -64,8 +76,8 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
             <div style={{ width: '100%', maxWidth: 1400 }}>
               {revealed ? (
                 <>
-                  <div style={{ fontSize: 18, fontWeight: 500, color: `var(--opt-${q.correctIndex})`, marginBottom: 16, textAlign: 'center' }}>
-                    ✅ {q.options[q.correctIndex]}
+                  <div style={{ fontSize: 18, fontWeight: 500, color: `var(--opt-${q.correctIndex})`, marginBottom: 16, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <CheckIcon size={18} /> {q.options[q.correctIndex]}
                   </div>
                   <BarChart counts={[0, 0, 0, 0]} options={q.options} correctIndex={q.correctIndex} revealed={true} />
                 </>
@@ -77,7 +89,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 24, flexWrap: 'wrap' }}>
             <button className="btn btn-secondary" disabled={index === 0} onClick={() => go(-1)}>→ שאלה קודמת</button>
-            {onSaveQuestion && <button className="btn btn-secondary" onClick={startEdit}>✏️ עריכה</button>}
+            {onSaveQuestion && <button className="btn btn-secondary" onClick={startEdit} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EditIcon size={18} /> עריכה</button>}
             <button className="btn" onClick={() => setRevealed((r) => !r)}>
               {revealed ? '🔙 הצג מסך שאלה' : '✅ הצג מסך תשובה (גרף)'}
             </button>
