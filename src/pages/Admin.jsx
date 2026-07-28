@@ -245,34 +245,74 @@ function QuizList({ quizzes, onEdit }) {
     setPreviewQuiz((pq) => (pq ? { ...pq, questions: pq.questions.map((qq, i) => (i === idx ? { ...qq, ...cleaned } : qq)) } : pq));
   }
 
+  async function moveQuiz(idx, delta) {
+    const target = idx + delta;
+    if (target < 0 || target >= quizzes.length) return;
+    const a = quizzes[idx];
+    const b = quizzes[target];
+    const aOrder = a.order ?? -a.createdAt;
+    const bOrder = b.order ?? -b.createdAt;
+    await Promise.all([
+      update(ref(db, `quizzes/${a.id}`), { order: bOrder }),
+      update(ref(db, `quizzes/${b.id}`), { order: aOrder }),
+    ]);
+  }
+
   if (!quizzes.length) return <div className="dim">עדיין אין חידונים שמורים.</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 640 }}>
-      {quizzes.map((q) => (
-        <div key={q.id} className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700 }}>{q.title}</div>
-            <div className="dim" style={{ fontSize: 14 }}>{q.questions?.length || 0} שאלות</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+      {quizzes.map((q, idx) => (
+        <div key={q.id} className="card" style={{ padding: 24, display: 'flex', alignItems: 'stretch', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
+            <button type="button" className="btn-secondary" disabled={idx === 0} onClick={() => moveQuiz(idx, -1)} title="הזז למעלה" style={{ border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'var(--text)' }}>▲</button>
+            <button type="button" className="btn-secondary" disabled={idx === quizzes.length - 1} onClick={() => moveQuiz(idx, 1)} title="הזז למטה" style={{ border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: 'var(--text)' }}>▼</button>
           </div>
-          <button
-            type="button"
-            className="btn"
-            disabled={!q.questions?.length || launching === q.id}
-            onClick={() => handleLaunch(q)}
-          >
-            {launching === q.id ? 'מפעיל...' : '▶ הפעל חידון'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={!q.questions?.length}
-            onClick={() => setPreviewQuiz(q)}
-          >
-            🖥️ תצוגה מקדימה למצגת
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => onEdit(q)}>עריכה / הוספת שאלות</button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleDelete(q.id)}>מחיקה</button>
+
+          <div style={{ width: 160, flexShrink: 0, position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1280 / 850', background: 'var(--surface-strong)' }}>
+            {q.coverImageURL ? (
+              <img src={q.coverImageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🖼️</div>
+            )}
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.15)', pointerEvents: 'none',
+            }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%', background: 'rgba(0,0,0,0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16,
+              }}>▶</div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 800, fontSize: 22 }}>{q.title}</div>
+              <div className="dim" style={{ fontSize: 14, fontWeight: 600 }}>{q.questions?.length || 0} שאלות</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => onEdit(q)}>✎ עריכה / הוספת שאלות</button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={!q.questions?.length}
+                onClick={() => setPreviewQuiz(q)}
+              >
+                👁 תצוגה מקדימה
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={!q.questions?.length || launching === q.id}
+                onClick={() => handleLaunch(q)}
+                style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)' }}
+              >
+                {launching === q.id ? 'מפעיל...' : '▶ הפעל חידון'}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => handleDelete(q.id)} title="מחיקה" style={{ padding: '10px 16px' }}>🗑</button>
+            </div>
+          </div>
         </div>
       ))}
 
@@ -298,7 +338,8 @@ function AdminInner() {
     const quizzesRef = ref(db, 'quizzes');
     return onValue(quizzesRef, (snap) => {
       const val = snap.val() || {};
-      setQuizzes(Object.entries(val).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.createdAt - a.createdAt));
+      const order = (q) => (q.order ?? -q.createdAt);
+      setQuizzes(Object.entries(val).map(([id, v]) => ({ id, ...v })).sort((a, b) => order(a) - order(b)));
     });
   }, []);
 
@@ -312,23 +353,36 @@ function AdminInner() {
     setMode('builder');
   }
 
+  const listWidth = mode === 'list' ? 1000 : 640;
+
   return (
     <div className="screen">
-      <div style={{ width: '100%', maxWidth: 640, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ width: '100%', maxWidth: listWidth, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Link to="/" className="dim" style={{ textDecoration: 'none' }}>← חזרה</Link>
         <div className="title" style={{ fontSize: 26 }}>⚙️ ניהול חידונים</div>
         <div style={{ width: 60 }} />
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-        <button className={`btn ${mode === 'list' ? '' : 'btn-secondary'}`} onClick={() => setMode('list')}>החידונים שלי</button>
-        <button className={`btn ${mode === 'builder' ? '' : 'btn-secondary'}`} onClick={startNew}>+ חידון חדש</button>
-      </div>
-
       {mode === 'list' ? (
-        <QuizList quizzes={quizzes} onEdit={startEdit} />
+        <div style={{ width: '100%', maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ fontSize: 14 }}>
+              <span className="dim">ניהול חידונים</span>
+              <span className="dim"> / </span>
+              <span style={{ color: '#b288ff', fontWeight: 700 }}>החידונים שלי</span>
+            </div>
+            <button type="button" className="btn btn-secondary" onClick={startNew} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>הוסף חידון חדש</span>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+            </button>
+          </div>
+          <QuizList quizzes={quizzes} onEdit={startEdit} />
+        </div>
       ) : (
-        <QuizBuilder key={editingQuiz?.id || 'new'} existingQuiz={editingQuiz} onDone={() => setMode('list')} />
+        <div style={{ width: '100%', maxWidth: 640 }}>
+          <button type="button" className="btn btn-secondary" style={{ marginBottom: 20 }} onClick={() => setMode('list')}>→ חזרה לרשימה</button>
+          <QuizBuilder key={editingQuiz?.id || 'new'} existingQuiz={editingQuiz} onDone={() => setMode('list')} />
+        </div>
       )}
     </div>
   );
