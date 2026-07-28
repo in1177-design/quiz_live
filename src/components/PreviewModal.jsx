@@ -44,8 +44,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
 
       {draft ? (
         <div style={{ flex: 1, width: '100%', maxWidth: 640, overflowY: 'auto' }}>
-          <QuestionForm q={draft} quizId={quizId} onChange={setDraft} onDone={finishEdit} doneLabel="✓ שמירה" />
-          <button className="btn btn-secondary" style={{ width: '100%', marginTop: 12 }} onClick={() => setDraft(null)}>ביטול</button>
+          <QuestionForm q={draft} quizId={quizId} onChange={setDraft} onDone={finishEdit} doneLabel="✓ שמירה" onCancel={() => setDraft(null)} />
         </div>
       ) : (
         <>

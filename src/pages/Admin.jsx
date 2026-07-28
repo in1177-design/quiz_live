@@ -58,7 +58,7 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
     );
   }
 
-  return <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמור שאלה" />;
+  return <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמור שאלה" title={`שאלה ${index + 1}`} />;
 }
 
 function QuizBuilder({ onDone, existingQuiz }) {
