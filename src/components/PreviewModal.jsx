@@ -62,7 +62,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
               <div style={{ fontSize: 26, fontWeight: 800, textAlign: 'center', maxWidth: 640 }}>{q.answerExplanation}</div>
             )}
 
-            <div style={{ width: '100%', maxWidth: 640 }}>
+            <div style={{ width: '100%', maxWidth: 1400 }}>
               {revealed ? (
                 <>
                   <div style={{ fontSize: 18, fontWeight: 500, color: `var(--opt-${q.correctIndex})`, marginBottom: 16, textAlign: 'center' }}>

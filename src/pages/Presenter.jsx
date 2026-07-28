@@ -9,7 +9,6 @@ import BarChart from '../components/BarChart.jsx';
 import Podium from '../components/Podium.jsx';
 import { generatePin } from '../utils/ids.js';
 
-const SHAPES = ['▲', '◆', '●', '■'];
 const REVEAL_SECONDS = 5;
 
 function joinUrl(pin) {
@@ -43,7 +42,7 @@ function QuizSelect({ onStart }) {
     }
     await set(ref(db, `sessions/${pin}`), {
       quizId: quiz.id,
-      quiz: { title: quiz.title, questions: quiz.questions },
+      quiz: { title: quiz.title, questions: quiz.questions, coverImageURL: quiz.coverImageURL || null },
       status: 'lobby',
       currentIndex: -1,
       questionStartedAt: null,
@@ -76,14 +75,25 @@ function QuizSelect({ onStart }) {
 
 function Lobby({ pin, session }) {
   const players = Object.entries(session.players || {}).map(([id, p]) => ({ id, ...p }));
+  const coverImageURL = session.quiz?.coverImageURL;
 
   async function startGame() {
     await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: 0, questionStartedAt: Date.now() });
   }
 
   return (
-    <div style={{ display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', width: '100%', maxWidth: 1200, flex: 1 }}>
-      <div className="card pop-in" style={{ textAlign: 'center', padding: 40 }}>
+    <>
+      {coverImageURL && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 0,
+            backgroundImage: `linear-gradient(rgba(15,12,41,0.55), rgba(15,12,41,0.85)), url(${coverImageURL})`,
+            backgroundSize: 'cover', backgroundPosition: 'center',
+          }}
+        />
+      )}
+      <div style={{ display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', width: '100%', maxWidth: 1200, flex: 1, position: 'relative', zIndex: 1 }}>
+        <div className="card pop-in" style={{ textAlign: 'center', padding: 40 }}>
         <div className="dim" style={{ marginBottom: 12, fontSize: 18 }}>סרקו כדי להצטרף</div>
         <div style={{ background: 'white', padding: 20, borderRadius: 20, display: 'inline-block' }}>
           <QRCodeSVG value={joinUrl(pin)} size={260} />
@@ -107,7 +117,8 @@ function Lobby({ pin, session }) {
           {players.length === 0 && <div className="dim">אפשר להתחיל גם ללא משתתפים (מצב בדיקה) — ממתין לשחקנים...</div>}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -147,6 +158,10 @@ function QuestionScreen({ pin, session, onTimeUp }) {
     if (!firedRef.current) { firedRef.current = true; onTimeUp(); }
   }
 
+  const voters = session.showWhoChose
+    ? [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]))
+    : undefined;
+
   return (
     <div style={{ width: '100%', maxWidth: 1400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
       <div className="dim" style={{ fontSize: 18 }}>שאלה {session.currentIndex + 1} מתוך {session.quiz.questions.length}</div>
@@ -157,24 +172,8 @@ function QuestionScreen({ pin, session, onTimeUp }) {
         <div className="title" style={{ fontSize: 44, marginBottom: 20 }}>{q.text}</div>
         {q.imageURL && <img src={q.imageURL} alt="" style={{ maxWidth: '100%', maxHeight: '48vh', borderRadius: 20, marginBottom: 20, alignSelf: 'center' }} />}
         <div className="dim" style={{ marginBottom: 20, fontSize: 18 }}>{answeredCount} / {totalPlayers} ענו</div>
-        <BarChart counts={counts} options={q.options} revealed={false} />
+        <BarChart counts={counts} options={q.options} revealed={false} voters={voters} />
       </div>
-
-      {session.showWhoChose && (
-        <div className="card fade-in" style={{ width: '100%' }}>
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>מי בחר מה</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            {[0, 1, 2, 3].map((oi) => (
-              <div key={oi}>
-                <div style={{ color: `var(--opt-${oi})`, fontWeight: 700, marginBottom: 6 }}>{SHAPES[oi]} {q.options[oi]}</div>
-                {Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => (
-                  <div key={pid} style={{ fontSize: 14 }}>{players[pid]?.avatar?.type === 'photo' ? '📷' : players[pid]?.avatar?.value} {players[pid]?.name}</div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-secondary" onClick={toggleShowWho}>
@@ -190,8 +189,10 @@ function RevealScreen({ pin, session, onNext }) {
   const q = session.quiz.questions[session.currentIndex];
   const [countdown, setCountdown] = useState(REVEAL_SECONDS);
   const answers = session.answers?.[session.currentIndex] || {};
+  const players = session.players || {};
   const counts = [0, 0, 0, 0];
   Object.values(answers).forEach((a) => { if (a.optionIndex >= 0 && a.optionIndex < 4) counts[a.optionIndex]++; });
+  const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
 
   useEffect(() => {
     setCountdown(REVEAL_SECONDS);
@@ -211,7 +212,7 @@ function RevealScreen({ pin, session, onNext }) {
         <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--opt-' + q.correctIndex + ')', marginBottom: 20 }}>
           ✅ {q.options[q.correctIndex]}
         </div>
-        <BarChart counts={counts} options={q.options} correctIndex={q.correctIndex} revealed={true} />
+        <BarChart counts={counts} options={q.options} correctIndex={q.correctIndex} revealed={true} voters={voters} />
       </div>
       <button className="btn" disabled={countdown > 0} onClick={onNext} style={{ fontSize: 20, padding: '16px 36px' }}>
         {countdown > 0 ? `הבא בעוד ${countdown}...` : isLast ? '🏆 הצגת תוצאות סופיות' : 'שאלה הבאה →'}

@@ -58,7 +58,19 @@ function JoinScreen({ initialPin, onJoined }) {
 
   return (
     <div className="card pop-in" style={{ maxWidth: 400, width: '100%' }}>
-      <div className="title" style={{ fontSize: 26, textAlign: 'center', marginBottom: 20 }}>🎮 הצטרפות לחידון</div>
+      <div className="title" style={{ fontSize: 26, textAlign: 'center', marginBottom: 16 }}>🎮 הצטרפות לחידון</div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+        <div
+          style={{
+            width: 84, height: 84, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 44, background: 'var(--surface-strong)', border: '2px solid var(--accent)', overflow: 'hidden',
+          }}
+        >
+          {avatar?.type === 'photo'
+            ? <img src={avatar.value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : avatar?.value}
+        </div>
+      </div>
       <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <input
           className="input"

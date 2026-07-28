@@ -30,8 +30,8 @@ export default function AvatarPicker({ value, onChange }) {
   }
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8, marginBottom: 14 }}>
+    <div style={{ width: '100%', minWidth: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(38px, 1fr))', gap: 8, marginBottom: 14, width: '100%' }}>
         {AVATAR_EMOJIS.map((emoji, i) => {
           const selected = value?.type === 'emoji' && value.value === emoji;
           return (
@@ -40,9 +40,9 @@ export default function AvatarPicker({ value, onChange }) {
               key={emoji}
               onClick={() => onChange({ type: 'emoji', value: emoji })}
               style={{
-                aspectRatio: '1', borderRadius: 12, fontSize: 22, border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                aspectRatio: '1', minWidth: 0, borderRadius: 12, fontSize: 20, border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
                 background: selected ? AVATAR_COLORS[i % AVATAR_COLORS.length] + '33' : 'rgba(255,255,255,0.06)',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
               }}
             >
               {emoji}

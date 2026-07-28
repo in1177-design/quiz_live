@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ref, onValue, set, update, remove } from 'firebase/database';
-import { Link } from 'react-router-dom';
-import { db } from '../firebase.js';
+import { ref, onValue, set, update, remove, get } from 'firebase/database';
+import { ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { Link, useNavigate } from 'react-router-dom';
+import { db, storage } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import PreviewModal from '../components/PreviewModal.jsx';
 import QuestionForm from '../components/QuestionForm.jsx';
-import { generateId } from '../utils/ids.js';
+import { compressImage } from '../utils/compressImage.js';
+import { generateId, generatePin } from '../utils/ids.js';
 
 const emptyQuestion = () => ({
   id: generateId(),
@@ -62,6 +64,8 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
 function QuizBuilder({ onDone, existingQuiz }) {
   const [quizId] = useState(() => existingQuiz?.id || generateId());
   const [title, setTitle] = useState(existingQuiz?.title || '');
+  const [coverImageURL, setCoverImageURL] = useState(existingQuiz?.coverImageURL || '');
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [questions, setQuestions] = useState(() =>
     existingQuiz?.questions?.length
       ? existingQuiz.questions.map((q) => ({
@@ -102,6 +106,25 @@ function QuizBuilder({ onDone, existingQuiz }) {
     });
   }
 
+  async function handleCoverImage(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const blob = await compressImage(file, { maxDim: 1920, quality: 0.85 });
+      const path = `covers/${quizId}.jpg`;
+      const storageRef = sRef(storage, path);
+      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+      const url = await getDownloadURL(storageRef);
+      setCoverImageURL(url);
+    } catch (err) {
+      console.error(err);
+      alert('העלאת התמונה נכשלה');
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
   const savedCount = questions.filter((q) => q.saved).length;
   const canAddNext = questions.length > 0 && questions[questions.length - 1].saved;
   const canSaveQuiz = title.trim() && savedCount > 0 && questions.every((q) => q.saved);
@@ -110,6 +133,7 @@ function QuizBuilder({ onDone, existingQuiz }) {
     await set(ref(db, `quizzes/${quizId}`), {
       title: title.trim(),
       createdAt: Date.now(),
+      coverImageURL: coverImageURL || null,
       questions: questions.map(({ text, options, correctIndex, timeLimit, imageURL, answerImageURL, answerExplanation }) => ({
         text, options, correctIndex, timeLimit, imageURL: imageURL || null, answerImageURL: answerImageURL || null,
         answerExplanation: answerExplanation || null,
@@ -127,6 +151,15 @@ function QuizBuilder({ onDone, existingQuiz }) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
       />
+
+      <div className="card" style={{ padding: 18 }}>
+        <input type="file" accept="image/*" id="cover-image" style={{ display: 'none' }} onChange={handleCoverImage} />
+        <label htmlFor="cover-image" className="btn btn-secondary" style={{ display: 'inline-block', cursor: 'pointer' }}>
+          {uploadingCover ? 'מעלה תמונה...' : coverImageURL ? '🖼️ החלפת תמונה ראשית' : '🖼️ העלאת תמונה ראשית (מסך פתיחה, אופציונלי)'}
+        </label>
+        <div className="dim" style={{ fontSize: 13, marginTop: 6 }}>תוצג במסך המנחה בזמן שממתינים שהמשחק יתחיל</div>
+        {coverImageURL && <img src={coverImageURL} alt="" style={{ display: 'block', marginTop: 10, maxWidth: 300, borderRadius: 10 }} />}
+      </div>
 
       {questions.map((q, idx) => (
         <QuestionEditor
@@ -168,10 +201,38 @@ function QuizBuilder({ onDone, existingQuiz }) {
 
 function QuizList({ quizzes, onEdit }) {
   const [previewQuiz, setPreviewQuiz] = useState(null);
+  const [launching, setLaunching] = useState(null);
+  const navigate = useNavigate();
 
   async function handleDelete(id) {
     if (!confirm('למחוק את החידון?')) return;
     await remove(ref(db, `quizzes/${id}`));
+  }
+
+  async function handleLaunch(quiz) {
+    setLaunching(quiz.id);
+    try {
+      let pin = generatePin();
+      for (let i = 0; i < 5; i++) {
+        const snap = await get(ref(db, `sessions/${pin}`));
+        if (!snap.exists()) break;
+        pin = generatePin();
+      }
+      await set(ref(db, `sessions/${pin}`), {
+        quizId: quiz.id,
+        quiz: { title: quiz.title, questions: quiz.questions, coverImageURL: quiz.coverImageURL || null },
+        status: 'lobby',
+        currentIndex: -1,
+        questionStartedAt: null,
+        showWhoChose: false,
+        createdAt: Date.now(),
+      });
+      localStorage.setItem('quiz_presenter_pin', pin);
+      sessionStorage.setItem('quiz_admin_ok', '1');
+      navigate('/present');
+    } finally {
+      setLaunching(null);
+    }
   }
 
   async function handleSaveQuestion(idx, updated) {
@@ -194,6 +255,14 @@ function QuizList({ quizzes, onEdit }) {
             <div style={{ fontWeight: 700 }}>{q.title}</div>
             <div className="dim" style={{ fontSize: 14 }}>{q.questions?.length || 0} שאלות</div>
           </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={!q.questions?.length || launching === q.id}
+            onClick={() => handleLaunch(q)}
+          >
+            {launching === q.id ? 'מפעיל...' : '▶ הפעל חידון'}
+          </button>
           <button
             type="button"
             className="btn btn-secondary"
