@@ -3,16 +3,25 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { ref, onValue, set, get, update } from 'firebase/database';
 import { db } from '../firebase.js';
 import AvatarPicker from '../components/AvatarPicker.jsx';
-import Timer from '../components/Timer.jsx';
 import { generateId } from '../utils/ids.js';
 import { calcPoints } from '../utils/scoring.js';
 
-const OPTION_STYLES = [
-  { color: 'var(--opt-0)', shape: '▲' },
-  { color: 'var(--opt-1)', shape: '◆' },
-  { color: 'var(--opt-2)', shape: '●' },
-  { color: 'var(--opt-3)', shape: '■' },
-];
+function PillTimer({ secondsLeft, totalSeconds }) {
+  const pct = Math.max(0, Math.min(1, secondsLeft / totalSeconds));
+  const urgent = secondsLeft <= 5;
+  return (
+    <div style={{ position: 'relative', width: 200, height: 36, borderRadius: 18, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', overflow: 'hidden' }}>
+      <div style={{
+        position: 'absolute', inset: 0, width: `${pct * 100}%`,
+        background: urgent ? 'var(--opt-0)' : 'linear-gradient(90deg, var(--accent), #22d3ee)',
+        transition: 'width 1s linear',
+      }} />
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'white', fontSize: 16 }}>
+        {Math.ceil(secondsLeft)}
+      </div>
+    </div>
+  );
+}
 
 function JoinScreen({ initialPin, onJoined }) {
   const [pin, setPin] = useState(initialPin || '');
@@ -148,22 +157,41 @@ function QuestionButtons({ pin, identity, session }) {
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-      <Timer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, width: '100%' }}>
-        {OPTION_STYLES.map((style, i) => (
-          <button
-            key={i}
-            onClick={() => answer(i)}
-            disabled={secondsLeft <= 0}
-            style={{
-              aspectRatio: '1', border: 'none', borderRadius: 20, background: style.color,
-              fontSize: 48, color: 'white', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            }}
-          >
-            {style.shape}
-          </button>
-        ))}
+    <div className="card pop-in" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+        <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
+      </div>
+
+      <div style={{ fontWeight: 700, fontSize: 18, textAlign: 'center', marginBottom: 16 }}>{q.text}</div>
+
+      {q.imageURL && (
+        <img src={q.imageURL} alt="" style={{ width: '100%', borderRadius: 16, display: 'block', marginBottom: 20, maxHeight: '32vh', objectFit: 'cover' }} />
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%' }}>
+        {q.options.map((opt, i) => {
+          const badgeOnRight = i % 2 === 0;
+          const badge = (
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0, color: 'white' }}>
+              {i + 1}
+            </div>
+          );
+          const text = <div style={{ flex: 1, minWidth: 0, textAlign: 'right', fontSize: 13, fontWeight: 700, color: 'white' }}>{opt}</div>;
+          return (
+            <button
+              key={i}
+              onClick={() => answer(i)}
+              disabled={secondsLeft <= 0}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, border: 'none', borderRadius: 16,
+                background: `var(--opt-${i})`, minHeight: 70, padding: '12px 14px', cursor: 'pointer',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+              }}
+            >
+              {badgeOnRight ? <>{badge}{text}</> : <>{text}{badge}</>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
