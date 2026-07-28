@@ -83,6 +83,45 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
     </div>
   );
 
+  const explanationBox = (
+    <div style={{ background: 'rgba(37,32,68,0.7)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      {q.answerImageURL && (
+        <img src={q.answerImageURL} alt="" style={{ width: 150, height: 100, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
+      )}
+      <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, color: `var(--opt-${q.correctIndex})`, fontWeight: 700, fontSize: 15, textAlign: 'right' }}>{q.options[q.correctIndex]}</div>
+          <div style={{ flexShrink: 0, color: '#22c55e', display: 'flex' }}><CheckIcon size={20} /></div>
+        </div>
+        {q.answerExplanation && (
+          <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', textAlign: 'right' }}>
+            <div className="dim" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>הסבר לתשובה:</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{q.answerExplanation}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (q.saved && isMobile) {
+    return (
+      <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={onDelete} title="מחיקה" style={{ border: '1px solid var(--border)', borderRadius: 10, width: 44, height: 44, background: 'none', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrashIcon size={20} /></button>
+          <button type="button" onClick={onEdit} title="עריכת שאלה" style={{ border: '1px solid var(--border)', borderRadius: 10, width: 44, height: 44, background: 'none', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><EditIcon size={20} /></button>
+        </div>
+
+        {q.imageURL && (
+          <img src={q.imageURL} alt="" style={{ width: '100%', borderRadius: 16, objectFit: 'cover', maxHeight: 220 }} />
+        )}
+
+        <div style={{ fontWeight: 700, fontSize: 18, textAlign: 'right' }}>{index + 1}. {q.text}</div>
+
+        {explanationBox}
+      </div>
+    );
+  }
+
   if (q.saved) {
     return (
       <div className="card" style={{ padding: 24, display: 'flex', gap: 16 }}>
@@ -96,23 +135,7 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
             <button type="button" className="btn btn-secondary" onClick={onDelete} title="מחיקה" style={{ padding: '10px 16px' }}><TrashIcon size={20} /></button>
           </div>
 
-          <div style={{ background: 'rgba(37,32,68,0.7)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {q.answerImageURL && (
-              <img src={q.answerImageURL} alt="" style={{ width: 150, height: 100, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
-            )}
-            <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ flex: 1, minWidth: 0, color: `var(--opt-${q.correctIndex})`, fontWeight: 700, fontSize: 15, textAlign: 'right' }}>{q.options[q.correctIndex]}</div>
-                <div style={{ flexShrink: 0, color: '#22c55e', display: 'flex' }}><CheckIcon size={20} /></div>
-              </div>
-              {q.answerExplanation && (
-                <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', textAlign: 'right' }}>
-                  <div className="dim" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>הסבר לתשובה:</div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{q.answerExplanation}</div>
-                </div>
-              )}
-            </div>
-          </div>
+          {explanationBox}
         </div>
       </div>
     );
