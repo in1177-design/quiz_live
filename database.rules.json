@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "quizzes": {
+      ".read": true,
+      ".write": true
+    },
+    "sessions": {
+      "$pin": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
