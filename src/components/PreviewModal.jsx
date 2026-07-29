@@ -68,13 +68,20 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
         </div>
       </div>
 
-      {draft ? (
-        <div style={{ flex: 1, width: '100%', maxWidth: 1380 }}>
-          <EditingQuestionCard q={draft} quizId={quizId} onChange={setDraft} onSave={finishEdit} onCancel={() => setDraft(null)} />
-        </div>
-      ) : (
-        <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-          <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} showWho={false} />
+      <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+        <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} showWho={false} />
+      </div>
+
+      {draft && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto',
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: 1000 }}>
+            <EditingQuestionCard q={draft} quizId={quizId} onChange={setDraft} onSave={finishEdit} onCancel={() => setDraft(null)} />
+          </div>
         </div>
       )}
     </div>

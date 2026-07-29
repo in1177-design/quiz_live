@@ -1,4 +1,5 @@
 import { AvatarStack } from './BarChart.jsx';
+import { ImageIcon } from './icons.jsx';
 
 export function PillTimer({ secondsLeft, totalSeconds }) {
   const pct = Math.max(0, Math.min(1, secondsLeft / totalSeconds));
@@ -30,11 +31,11 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, showWho })
             {i + 1}
           </div>
         );
-        const text = <div style={{ flex: 1, minWidth: 0, textAlign: 'right', fontWeight: 700, fontSize: 16, color: 'white' }}>{opt}</div>;
+        const text = <div style={{ flex: 1, minWidth: 0, textAlign: 'right', fontWeight: 700, fontSize: 24, color: 'white' }}>{opt}</div>;
         const avatars = showWho && voters?.[i]?.length ? <AvatarStack voters={voters[i]} /> : null;
         return (
           <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 12, height: 58, padding: '0 16px', borderRadius: 14,
+            display: 'flex', alignItems: 'center', gap: 12, minHeight: 58, padding: '12px 16px', borderRadius: 14,
             background: muted ? '#3e376e' : `var(--opt-${i})`, transition: 'background 0.4s ease',
           }}>
             {avatars}{badge}{text}
@@ -45,21 +46,45 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, showWho })
   );
 }
 
-export function QuestionCard({ q, revealed, secondsLeft, voters, showWho, meta }) {
-  const displayImage = revealed ? (q.answerImageURL || q.imageURL) : q.imageURL;
+const FADE = 'opacity 0.6s ease';
+
+export function QuestionCard({ q, revealed, secondsLeft, voters, showWho, headerLabel }) {
+  const qImg = q.imageURL;
+  const aImg = q.answerImageURL || q.imageURL;
+  const hasAnyImage = !!(qImg || aImg);
+
   return (
-    <div className="card pop-in" style={{ width: '100%', padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: revealed ? 20 : 24 }}>
-      {!revealed && <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />}
-      <div className="title" style={{ fontSize: 24, textAlign: 'center' }}>{q.text || '(אין טקסט שאלה)'}</div>
-      {revealed && q.answerExplanation && (
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#f59e0b', textAlign: 'center' }}>{q.answerExplanation}</div>
-      )}
-      {displayImage && (
-        <div style={{ width: 1240, maxWidth: '100%', borderRadius: 20, border: revealed ? 'none' : '1.5px solid #342e5b', overflow: 'hidden' }}>
-          <img src={displayImage} alt="" style={{ width: '100%', height: 'auto', display: 'block' }} />
+    <div className="card pop-in" style={{ width: '100%', padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+      {headerLabel && <div className="dim" style={{ width: '100%', textAlign: 'right', fontSize: 13, marginTop: -16 }}>{headerLabel}</div>}
+
+      <div style={{ width: '100%', display: 'grid' }}>
+        <div aria-hidden={revealed} style={{ gridArea: '1 / 1', display: 'flex', justifyContent: 'center', opacity: revealed ? 0 : 1, pointerEvents: revealed ? 'none' : 'auto', transition: FADE }}>
+          <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
         </div>
-      )}
-      {meta}
+        <div aria-hidden={!revealed} style={{ gridArea: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none', transition: FADE }}>
+          {q.answerExplanation && <div style={{ fontSize: 30, fontWeight: 700, color: '#f59e0b' }}>{q.answerExplanation}</div>}
+        </div>
+      </div>
+
+      <div className="title" style={{ fontSize: 24, textAlign: 'center', opacity: revealed ? 0.5 : 1, transition: FADE }}>{q.text || '(אין טקסט שאלה)'}</div>
+
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 1240, aspectRatio: '1240 / 800', borderRadius: 20,
+        border: '1.5px solid #342e5b', overflow: 'hidden', background: 'var(--surface-strong)',
+      }}>
+        {!hasAnyImage && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ImageIcon size={64} />
+          </div>
+        )}
+        {qImg && (
+          <img src={qImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: revealed ? 0 : 1, transition: FADE }} />
+        )}
+        {aImg && (
+          <img src={aImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: revealed ? 1 : 0, transition: FADE }} />
+        )}
+      </div>
+
       <AnswerGrid options={q.options} correctIndex={q.correctIndex} revealed={revealed} voters={voters} showWho={showWho} />
     </div>
   );

@@ -24,12 +24,12 @@ function useIsMobile(breakpoint = 700) {
   return isMobile;
 }
 
-const emptyQuestion = () => ({
+const emptyQuestion = (timeLimit = 25) => ({
   id: generateId(),
   text: '',
   options: ['', '', '', ''],
   correctIndex: 0,
-  timeLimit: 25,
+  timeLimit,
   imageURL: '',
   answerImageURL: '',
   answerExplanation: '',
@@ -184,13 +184,14 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
   const [title, setTitle] = useState(existingQuiz?.title || '');
   const [coverImageURL, setCoverImageURL] = useState(existingQuiz?.coverImageURL || '');
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [defaultTimeLimit, setDefaultTimeLimit] = useState(existingQuiz?.defaultTimeLimit || 25);
   const [questions, setQuestions] = useState(() =>
     existingQuiz?.questions?.length
       ? existingQuiz.questions.map((q) => ({
           ...q, id: generateId(), imageURL: q.imageURL || '', answerImageURL: q.answerImageURL || '',
           answerExplanation: q.answerExplanation || '', saved: true, uploading: false, uploadingAnswer: false,
         }))
-      : [emptyQuestion()]
+      : [emptyQuestion(existingQuiz?.defaultTimeLimit || 25)]
   );
   const [previewIndex, setPreviewIndex] = useState(null);
   const [launching, setLaunching] = useState(false);
@@ -219,7 +220,13 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
   }
 
   function addQuestion() {
-    setQuestions((qs) => [...qs, emptyQuestion()]);
+    setQuestions((qs) => [...qs, emptyQuestion(defaultTimeLimit)]);
+  }
+
+  function handleDefaultTimeLimitChange(value) {
+    const num = Number(value) || 25;
+    setDefaultTimeLimit(num);
+    setQuestions((qs) => qs.map((q) => ({ ...q, timeLimit: num })));
   }
 
   function moveQuestion(idx, delta) {
@@ -260,6 +267,7 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
       title: title.trim(),
       createdAt: Date.now(),
       coverImageURL: coverImageURL || null,
+      defaultTimeLimit,
       questions: questions.map(cleanQuestion),
     });
     onDone();
@@ -327,7 +335,21 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
-            <div className="dim" style={{ fontSize: 14, fontWeight: 600, textAlign: 'right' }}>{questions.length} שאלות</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div className="dim" style={{ fontSize: 14, fontWeight: 600, textAlign: 'right' }}>{questions.length} שאלות</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>זמן ברירת מחדל לשאלה (שניות):</span>
+                <input
+                  type="number"
+                  className="input"
+                  style={{ width: 80 }}
+                  min={5}
+                  max={120}
+                  value={defaultTimeLimit}
+                  onChange={(e) => handleDefaultTimeLimitChange(e.target.value)}
+                />
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button type="button" className="btn btn-secondary" disabled={!savedCount} onClick={() => setPreviewIndex(0)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EyeIcon size={19} /> תצוגה מקדימה</button>
               <button type="button" className="btn" disabled={!savedCount || launching} onClick={handleLaunch} style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>

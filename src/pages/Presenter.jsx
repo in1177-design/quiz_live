@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { ref, onValue, set, update, get } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import Podium from '../components/Podium.jsx';
 import { QuestionCard } from '../components/QuestionDisplay.jsx';
-import { EyeIcon, RightSquareIcon } from '../components/icons.jsx';
+import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon } from '../components/icons.jsx';
 import { generatePin } from '../utils/ids.js';
 
 function joinUrl(pin) {
@@ -71,6 +71,50 @@ function QuizSelect({ onStart }) {
   );
 }
 
+function JoinLink({ pin }) {
+  const [copied, setCopied] = useState(false);
+  const url = joinUrl(pin);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function shareLink() {
+    if (navigator.share) {
+      try { await navigator.share({ title: 'הצטרפות לחידון', url }); } catch (err) { /* user cancelled or unsupported */ }
+    } else {
+      copyLink();
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, justifyContent: 'center' }}>
+      <button
+        type="button"
+        onClick={copyLink}
+        title="העתקת קישור"
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', fontSize: 14, textDecoration: 'underline', direction: 'ltr' }}
+      >
+        {copied ? 'הקישור הועתק ✓' : url}
+      </button>
+      <button
+        type="button"
+        onClick={shareLink}
+        title="שליחת קישור"
+        style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, width: 30, height: 30, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text)' }}
+      >
+        <ShareIcon size={16} />
+      </button>
+    </div>
+  );
+}
+
 function Lobby({ pin, session }) {
   const players = Object.entries(session.players || {}).map(([id, p]) => ({ id, ...p }));
   const coverImageURL = session.quiz?.coverImageURL;
@@ -98,6 +142,7 @@ function Lobby({ pin, session }) {
         </div>
         <div style={{ fontSize: 64, fontWeight: 900, letterSpacing: 6, margin: '22px 0 6px' }}>{pin}</div>
         <div className="dim" style={{ fontSize: 18 }}>קוד הצטרפות</div>
+        <JoinLink pin={pin} />
       </div>
 
       <div className="card pop-in" style={{ minWidth: 340, flex: 1, maxWidth: 500, padding: 40 }}>
@@ -108,11 +153,14 @@ function Lobby({ pin, session }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxHeight: 420, overflowY: 'auto' }}>
           {players.map((p) => (
             <div key={p.id} className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 16px', fontSize: 18 }}>
-              <span style={{ fontSize: 22 }}>{p.avatar?.type === 'photo' ? '📷' : p.avatar?.value}</span>
+              <span style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                {p.avatar?.type === 'photo'
+                  ? <img src={p.avatar.value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : p.avatar?.value}
+              </span>
               <span>{p.name}</span>
             </div>
           ))}
-          {players.length === 0 && <div className="dim">אפשר להתחיל גם ללא משתתפים (מצב בדיקה) — ממתין לשחקנים...</div>}
         </div>
       </div>
       </div>
@@ -120,49 +168,54 @@ function Lobby({ pin, session }) {
   );
 }
 
-function iconBtnStyle(active, disabled) {
-  return {
-    width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-    background: active ? 'rgba(178,136,255,0.25)' : 'rgba(37,32,68,0.7)',
-    border: `1px solid ${active ? 'var(--accent)' : '#3e376e'}`,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
-    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.35 : 1,
-  };
-}
-
-function ScreenHeader({ session, revealed, onNext, onEyeClick, eyeTitle, eyeActive }) {
+function CornerIconButton({ onClick, title, disabled, style, children }) {
+  const [hover, setHover] = useState(false);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 1380, gap: 16 }}>
-      <div style={{ fontSize: 14 }}>
-        <span style={{ color: '#b288ff', fontWeight: 700 }}>{session.quiz.title}</span>
-        <span className="dim"> · שאלה {session.currentIndex + 1} מתוך {session.quiz.questions.length}</span>
-      </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        {revealed && (
-          <button type="button" onClick={onNext} title="שאלה הבאה" style={iconBtnStyle(false)}>
-            <RightSquareIcon size={24} />
-          </button>
-        )}
-        <button type="button" onClick={onEyeClick} title={eyeTitle} style={iconBtnStyle(eyeActive)}>
-          <EyeIcon size={24} />
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: 44, height: 44, borderRadius: 12, border: '1px solid #3e376e',
+        background: 'rgba(37,32,68,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'white', cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.15 : (hover ? 1 : 0.3), transition: 'opacity 0.2s ease',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
-function QuestionScreen({ session, onTimeUp }) {
+function CornerActionButtons({ onEyeClick, eyeTitle, onNext, nextEnabled }) {
+  return (
+    <>
+      <CornerIconButton onClick={onEyeClick} title={eyeTitle} style={{ position: 'fixed', bottom: 78, right: 20, zIndex: 50 }}>
+        <EyeIcon size={22} />
+      </CornerIconButton>
+      <CornerIconButton onClick={onNext} title="שאלה הבאה" disabled={!nextEnabled} style={{ position: 'fixed', bottom: 20, right: 74, zIndex: 50 }}>
+        <RightSquareIcon size={22} />
+      </CornerIconButton>
+    </>
+  );
+}
+
+function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
+  const revealed = session.status === 'reveal';
   const q = session.quiz.questions[session.currentIndex];
   const [secondsLeft, setSecondsLeft] = useState(q.timeLimit);
   const firedRef = useRef(false);
   const answers = session.answers?.[session.currentIndex] || {};
   const players = session.players || {};
-  const answeredCount = Object.keys(answers).length;
-  const totalPlayers = Object.keys(players).length;
   const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
 
   useEffect(() => {
     firedRef.current = false;
+    if (session.status !== 'question') return;
     const started = session.questionStartedAt;
     const tick = () => {
       const left = Math.max(0, q.timeLimit - (Date.now() - started) / 1000);
@@ -176,32 +229,11 @@ function QuestionScreen({ session, onTimeUp }) {
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.currentIndex, session.questionStartedAt]);
+  }, [session.currentIndex, session.questionStartedAt, session.status]);
 
   function skipToAnswers() {
     if (!firedRef.current) { firedRef.current = true; onTimeUp(); }
   }
-
-  return (
-    <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
-      <ScreenHeader session={session} revealed={false} onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" />
-      <QuestionCard
-        q={q}
-        revealed={false}
-        secondsLeft={secondsLeft}
-        voters={voters}
-        showWho={session.showWhoChose}
-        meta={<div className="dim" style={{ fontSize: 14 }}>{answeredCount} / {totalPlayers} ענו</div>}
-      />
-    </div>
-  );
-}
-
-function RevealScreen({ pin, session, onNext }) {
-  const q = session.quiz.questions[session.currentIndex];
-  const answers = session.answers?.[session.currentIndex] || {};
-  const players = session.players || {};
-  const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
 
   async function toggleShowWho() {
     await update(ref(db, `sessions/${pin}`), { showWhoChose: !session.showWhoChose });
@@ -209,15 +241,20 @@ function RevealScreen({ pin, session, onNext }) {
 
   return (
     <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
-      <ScreenHeader
-        session={session}
-        revealed={true}
-        onNext={onNext}
-        onEyeClick={toggleShowWho}
-        eyeTitle={session.showWhoChose ? 'הסתר מי בחר מה' : 'הצג מי בחר מה'}
-        eyeActive={session.showWhoChose}
+      <QuestionCard
+        q={q}
+        revealed={revealed}
+        secondsLeft={secondsLeft}
+        voters={voters}
+        showWho={session.showWhoChose}
+        headerLabel={`${session.quiz.title} · שאלה ${session.currentIndex + 1} מתוך ${session.quiz.questions.length}`}
       />
-      <QuestionCard q={q} revealed={true} voters={voters} showWho={session.showWhoChose} />
+      <CornerActionButtons
+        onEyeClick={revealed ? toggleShowWho : skipToAnswers}
+        eyeTitle={revealed ? (session.showWhoChose ? 'הסתר מי בחר מה' : 'הצג מי בחר מה') : 'דלג לתשובות'}
+        onNext={onNext}
+        nextEnabled={revealed}
+      />
     </div>
   );
 }
@@ -235,7 +272,15 @@ function FinalScreen({ session, onRestart }) {
         <div className="card" style={{ width: '100%' }}>
           {rest.map((p, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <span>{i + 4}. {p.avatar?.type === 'photo' ? '📷' : p.avatar?.value} {p.name}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {i + 4}.
+                <span style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {p.avatar?.type === 'photo'
+                    ? <img src={p.avatar.value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : p.avatar?.value}
+                </span>
+                {p.name}
+              </span>
               <span style={{ fontWeight: 700 }}>{p.score}</span>
             </div>
           ))}
@@ -243,6 +288,15 @@ function FinalScreen({ session, onRestart }) {
       )}
       <button className="btn" onClick={onRestart}>🔁 משחק חדש</button>
     </div>
+  );
+}
+
+function AdminCornerLink() {
+  const navigate = useNavigate();
+  return (
+    <CornerIconButton onClick={() => navigate('/admin')} title="ניהול חידונים" style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 50 }}>
+      <SettingsIcon size={22} />
+    </CornerIconButton>
   );
 }
 
@@ -264,6 +318,13 @@ function PresenterInner() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin]);
+
+  useEffect(() => {
+    session?.quiz?.questions?.forEach((q) => {
+      if (q.imageURL) new Image().src = q.imageURL;
+      if (q.answerImageURL) new Image().src = q.answerImageURL;
+    });
+  }, [session?.quiz?.questions]);
 
   async function goToReveal() {
     await update(ref(db, `sessions/${pin}`), { status: 'reveal' });
@@ -292,9 +353,9 @@ function PresenterInner() {
 
       {!pin && <QuizSelect onStart={setPin} />}
       {pin && session && session.status === 'lobby' && <Lobby pin={pin} session={session} />}
-      {pin && session && session.status === 'question' && <QuestionScreen session={session} onTimeUp={goToReveal} />}
-      {pin && session && session.status === 'reveal' && <RevealScreen pin={pin} session={session} onNext={nextQuestion} />}
+      {isLiveScreen && <LiveQuestionScreen pin={pin} session={session} onTimeUp={goToReveal} onNext={nextQuestion} />}
       {pin && session && session.status === 'final' && <FinalScreen session={session} onRestart={() => setPin(null)} />}
+      <AdminCornerLink />
     </div>
   );
 }
