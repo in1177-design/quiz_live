@@ -6,7 +6,7 @@ import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import Podium from '../components/Podium.jsx';
 import { QuestionCard } from '../components/QuestionDisplay.jsx';
-import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon } from '../components/icons.jsx';
+import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon, ImageIcon } from '../components/icons.jsx';
 import { generatePin } from '../utils/ids.js';
 
 function joinUrl(pin) {
@@ -119,7 +119,12 @@ function Lobby({ pin, session }) {
   const coverImageURL = session.quiz?.coverImageURL;
 
   async function startGame() {
-    await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: 0, questionStartedAt: Date.now() });
+    const firstItem = session.quiz.questions[0];
+    if (firstItem?.type === 'slide') {
+      await update(ref(db, `sessions/${pin}`), { status: 'slide', currentIndex: 0, questionStartedAt: null });
+    } else {
+      await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: 0, questionStartedAt: Date.now() });
+    }
   }
 
   return (
@@ -254,7 +259,38 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   );
 }
 
-function FinalScreen({ session, onRestart }) {
+function LiveSlideScreen({ item, onNext, showControls = true }) {
+  const image = item?.imageURL ? (
+    <img src={item.imageURL} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+  ) : (
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={64} /></div>
+  );
+
+  if (item?.imageSize === 'full') {
+    return (
+      <>
+        <div style={{ position: 'fixed', inset: 0, background: '#000' }}>{image}</div>
+        {showControls && <CornerActionButtons onEyeClick={undefined} eyeTitle="" eyeEnabled={false} onNext={onNext} nextEnabled />}
+      </>
+    );
+  }
+
+  return (
+    <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
+      <div className="card pop-in" style={{ width: '100%', padding: 40, display: 'flex', justifyContent: 'center' }}>
+        <div style={{
+          position: 'relative', width: '100%', maxWidth: 1240, aspectRatio: '1240 / 800', borderRadius: 20,
+          border: '1.5px solid #342e5b', overflow: 'hidden', background: 'var(--surface-strong)',
+        }}>
+          {image}
+        </div>
+      </div>
+      {showControls && <CornerActionButtons onEyeClick={undefined} eyeTitle="" eyeEnabled={false} onNext={onNext} nextEnabled />}
+    </div>
+  );
+}
+
+function FinalScreen({ session, onRestart, onNext }) {
   const players = Object.values(session.players || {}).sort((a, b) => b.score - a.score);
   const top3 = players.slice(0, 3);
   const rest = players.slice(3, 10);
@@ -281,7 +317,10 @@ function FinalScreen({ session, onRestart }) {
           ))}
         </div>
       )}
-      <button className="btn" onClick={onRestart}>🔁 משחק חדש</button>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button className="btn" onClick={onRestart}>🔁 משחק חדש</button>
+        {onNext && <button className="btn btn-secondary" onClick={onNext}>המשך ➡️</button>}
+      </div>
     </div>
   );
 }
@@ -319,22 +358,32 @@ function PresenterInner() {
       if (q.imageURL) new Image().src = q.imageURL;
       if (q.answerImageURL) new Image().src = q.answerImageURL;
     });
-  }, [session?.quiz?.questions]);
+    if (session?.quiz?.closingSlide?.imageURL) new Image().src = session.quiz.closingSlide.imageURL;
+  }, [session?.quiz?.questions, session?.quiz?.closingSlide]);
 
   async function goToReveal() {
     await update(ref(db, `sessions/${pin}`), { status: 'reveal' });
   }
 
+  async function goToClosing() {
+    await update(ref(db, `sessions/${pin}`), { status: 'closing' });
+  }
+
   async function nextQuestion() {
     const nextIndex = session.currentIndex + 1;
     if (nextIndex < session.quiz.questions.length) {
-      await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: nextIndex, questionStartedAt: Date.now() });
+      const nextItem = session.quiz.questions[nextIndex];
+      if (nextItem.type === 'slide') {
+        await update(ref(db, `sessions/${pin}`), { status: 'slide', currentIndex: nextIndex, questionStartedAt: null });
+      } else {
+        await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: nextIndex, questionStartedAt: Date.now() });
+      }
     } else {
       await update(ref(db, `sessions/${pin}`), { status: 'final' });
     }
   }
 
-  const isLiveScreen = pin && session && (session.status === 'question' || session.status === 'reveal');
+  const isLiveScreen = pin && session && (session.status === 'question' || session.status === 'reveal' || session.status === 'slide');
 
   return (
     <div className="screen">
@@ -348,8 +397,12 @@ function PresenterInner() {
 
       {!pin && <QuizSelect onStart={setPin} />}
       {pin && session && session.status === 'lobby' && <Lobby pin={pin} session={session} />}
-      {isLiveScreen && <LiveQuestionScreen pin={pin} session={session} onTimeUp={goToReveal} onNext={nextQuestion} />}
-      {pin && session && session.status === 'final' && <FinalScreen session={session} onRestart={() => setPin(null)} />}
+      {isLiveScreen && session.status === 'slide' && <LiveSlideScreen item={session.quiz.questions[session.currentIndex]} onNext={nextQuestion} />}
+      {isLiveScreen && session.status !== 'slide' && <LiveQuestionScreen pin={pin} session={session} onTimeUp={goToReveal} onNext={nextQuestion} />}
+      {pin && session && session.status === 'final' && (
+        <FinalScreen session={session} onRestart={() => setPin(null)} onNext={session.quiz.closingSlide?.imageURL ? goToClosing : undefined} />
+      )}
+      {pin && session && session.status === 'closing' && <LiveSlideScreen item={session.quiz.closingSlide} showControls={false} />}
       <AdminCornerLink />
     </div>
   );

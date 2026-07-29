@@ -1,7 +1,25 @@
 import { useState } from 'react';
 import { QuestionCard } from './QuestionDisplay.jsx';
 import EditingQuestionCard from './QuestionEditorCard.jsx';
-import { EyeIcon, EditIcon, LeftSquareIcon, RightSquareIcon, CloseIcon } from './icons.jsx';
+import { EyeIcon, EditIcon, LeftSquareIcon, RightSquareIcon, CloseIcon, ImageIcon } from './icons.jsx';
+
+function SlidePreview({ item }) {
+  const image = item.imageURL ? (
+    <img src={item.imageURL} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+  ) : (
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={64} /></div>
+  );
+  return (
+    <div className="card pop-in" style={{ width: '100%', padding: 40, display: 'flex', justifyContent: 'center' }}>
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 1240, aspectRatio: '1240 / 800', borderRadius: 20,
+        border: '1.5px solid #342e5b', overflow: 'hidden', background: 'var(--surface-strong)',
+      }}>
+        {image}
+      </div>
+    </div>
+  );
+}
 
 function iconBtnStyle(active, disabled) {
   return {
@@ -18,6 +36,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
   const [revealed, setRevealed] = useState(false);
   const [draft, setDraft] = useState(null);
   const q = questions[index];
+  const isSlide = q?.type === 'slide';
 
   function go(delta) {
     setRevealed(false);
@@ -60,8 +79,8 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
             <>
               <button type="button" onClick={() => go(1)} disabled={index === questions.length - 1} title="שאלה הבאה" style={iconBtnStyle(false, index === questions.length - 1)}><RightSquareIcon size={24} /></button>
               <button type="button" onClick={() => go(-1)} disabled={index === 0} title="שאלה קודמת" style={iconBtnStyle(false, index === 0)}><LeftSquareIcon size={24} /></button>
-              {onSaveQuestion && <button type="button" onClick={startEdit} title="עריכת שאלה" style={iconBtnStyle(false)}><EditIcon size={24} /></button>}
-              <button type="button" onClick={() => setRevealed((r) => !r)} title={revealed ? 'הצג מסך שאלה' : 'הצג מסך תשובה'} style={iconBtnStyle(revealed)}><EyeIcon size={24} /></button>
+              {onSaveQuestion && !isSlide && <button type="button" onClick={startEdit} title="עריכת שאלה" style={iconBtnStyle(false)}><EditIcon size={24} /></button>}
+              {!isSlide && <button type="button" onClick={() => setRevealed((r) => !r)} title={revealed ? 'הצג מסך שאלה' : 'הצג מסך תשובה'} style={iconBtnStyle(revealed)}><EyeIcon size={24} /></button>}
             </>
           )}
           <button type="button" onClick={onClose} title="סגירה" style={iconBtnStyle(false)}><CloseIcon size={24} /></button>
@@ -69,7 +88,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
       </div>
 
       <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} />
+        {isSlide ? <SlidePreview item={q} /> : <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} />}
       </div>
 
       {draft && (

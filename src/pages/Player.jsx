@@ -6,6 +6,8 @@ import AvatarPicker from '../components/AvatarPicker.jsx';
 import { generateId } from '../utils/ids.js';
 import { calcPoints } from '../utils/scoring.js';
 
+const SHAPES = ['▲', '◆', '●', '■'];
+
 function PillTimer({ secondsLeft, totalSeconds }) {
   const pct = Math.max(0, Math.min(1, secondsLeft / totalSeconds));
   const urgent = secondsLeft <= 5;
@@ -122,6 +124,7 @@ function Waiting({ identity }) {
 function QuestionButtons({ pin, identity, session }) {
   const currentIndex = session.currentIndex;
   const q = session.quiz.questions[currentIndex];
+  const shapeStyle = session.quiz.answerButtonStyle === 'shape';
   const [secondsLeft, setSecondsLeft] = useState(q.timeLimit);
   const myAnswer = session.answers?.[currentIndex]?.[identity.playerId];
 
@@ -170,6 +173,21 @@ function QuestionButtons({ pin, identity, session }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%' }}>
         {q.options.map((opt, i) => {
+          if (shapeStyle) {
+            return (
+              <button
+                key={i}
+                onClick={() => answer(i)}
+                disabled={secondsLeft <= 0}
+                style={{
+                  aspectRatio: '1', border: 'none', borderRadius: 20, background: `var(--opt-${i})`,
+                  fontSize: 48, color: 'white', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                }}
+              >
+                {SHAPES[i]}
+              </button>
+            );
+          }
           const badgeOnRight = i % 2 === 0;
           const badge = (
             <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0, color: 'white' }}>
@@ -192,6 +210,26 @@ function QuestionButtons({ pin, identity, session }) {
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function SlideView({ item }) {
+  const image = item?.imageURL ? (
+    <img src={item.imageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+  ) : null;
+
+  if (item?.imageSize === 'full') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000' }}>{image}</div>
+    );
+  }
+
+  return (
+    <div className="card pop-in" style={{ width: '100%', maxWidth: 480, padding: 20 }}>
+      <div style={{ width: '100%', aspectRatio: '1240 / 800', borderRadius: 16, overflow: 'hidden', background: 'var(--surface-strong)' }}>
+        {image}
       </div>
     </div>
   );
@@ -285,8 +323,10 @@ function PlayerInner() {
     <div className="screen" style={{ justifyContent: 'center' }}>
       {session.status === 'lobby' && <Waiting identity={identity} />}
       {session.status === 'question' && <QuestionButtons pin={identity.pin} identity={identity} session={session} />}
+      {session.status === 'slide' && <SlideView item={session.quiz.questions[session.currentIndex]} />}
       {session.status === 'reveal' && <RevealResult identity={identity} session={session} />}
       {session.status === 'final' && <FinalResult identity={identity} session={session} />}
+      {session.status === 'closing' && <SlideView item={session.quiz.closingSlide} />}
     </div>
   );
 }
