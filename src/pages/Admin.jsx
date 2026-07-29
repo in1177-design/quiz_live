@@ -6,6 +6,7 @@ import { db, storage } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import PreviewModal from '../components/PreviewModal.jsx';
 import QuestionForm from '../components/QuestionForm.jsx';
+import EditingQuestionCard from '../components/QuestionEditorCard.jsx';
 import { ImageIcon, PlusIcon, EyeIcon, TrashIcon, EditIcon, PlayIcon, CheckIcon, ChevronUpCircleIcon, ChevronDownCircleIcon, SettingsIcon } from '../components/icons.jsx';
 import ImageUploadField from '../components/ImageUploadField.jsx';
 import { compressImage } from '../utils/compressImage.js';
@@ -68,18 +69,12 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
 
   const imageColumn = (
     <div style={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-      {q.saved ? (
-        q.imageURL ? (
-          <img src={q.imageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
-        ) : (
-          <div style={{ width: '100%', height: 100, borderRadius: 12, background: 'var(--surface-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={26} /></div>
-        )
+      {q.imageURL ? (
+        <img src={q.imageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
       ) : (
-        <ImageUploadField id={`qimg-${q.id}`} imageURL={q.imageURL} uploading={q.uploading} onUpload={handleImage} radius={12} />
+        <div style={{ width: '100%', height: 100, borderRadius: 12, background: 'var(--surface-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={26} /></div>
       )}
-      {q.saved && (
-        <button type="button" className="btn btn-secondary" disabled={!q.options?.some((o) => o.trim())} onClick={onPreview} style={{ width: '100%', fontSize: 13, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><EyeIcon size={18} /> תצוגה מקדימה</button>
-      )}
+      <button type="button" className="btn btn-secondary" disabled={!q.options?.some((o) => o.trim())} onClick={onPreview} style={{ width: '100%', fontSize: 13, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><EyeIcon size={18} /> תצוגה מקדימה</button>
     </div>
   );
 
@@ -162,24 +157,17 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
   }
 
   return (
-    <div style={{ width: '100%' }}>
-      <div style={{
-        background: '#2c2251', border: '2px solid #b288ff', borderBottom: 'none', borderRadius: '24px 24px 0 0',
-        padding: 24, display: 'flex', gap: 16,
-      }}>
-        {arrowsColumn}
-        {imageColumn}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} hideQuestionImage section="top" />
-        </div>
-      </div>
-      <div style={{
-        background: '#1a1531', border: '2px solid #b288ff', borderTop: 'none', borderRadius: '0 0 24px 24px',
-        boxShadow: '0 16px 32px rgba(0,0,0,0.5)', padding: 32,
-      }}>
-        <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} section="bottom" />
-      </div>
-    </div>
+    <EditingQuestionCard
+      q={q}
+      quizId={quizId}
+      onChange={onChange}
+      onSave={onSave}
+      onCancel={onCancelEdit}
+      index={index}
+      total={total}
+      onMoveUp={onMoveUp}
+      onMoveDown={onMoveDown}
+    />
   );
 }
 
@@ -293,6 +281,8 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
         currentIndex: -1,
         questionStartedAt: null,
         showWhoChose: false,
+        players: {},
+        answers: {},
         createdAt: Date.now(),
       });
       localStorage.setItem('quiz_presenter_pin', pin);
@@ -414,6 +404,8 @@ function QuizList({ quizzes, onEdit, onAddNew }) {
         currentIndex: -1,
         questionStartedAt: null,
         showWhoChose: false,
+        players: {},
+        answers: {},
         createdAt: Date.now(),
       });
       localStorage.setItem('quiz_presenter_pin', pin);

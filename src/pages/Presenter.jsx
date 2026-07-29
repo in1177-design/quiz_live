@@ -4,12 +4,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
 import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
-import Timer from '../components/Timer.jsx';
-import BarChart from '../components/BarChart.jsx';
 import Podium from '../components/Podium.jsx';
+import { QuestionCard } from '../components/QuestionDisplay.jsx';
+import { EyeIcon, RightSquareIcon } from '../components/icons.jsx';
 import { generatePin } from '../utils/ids.js';
-
-const REVEAL_SECONDS = 5;
 
 function joinUrl(pin) {
   return `${window.location.origin}${window.location.pathname}#/play?pin=${pin}`;
@@ -122,16 +120,46 @@ function Lobby({ pin, session }) {
   );
 }
 
-function QuestionScreen({ pin, session, onTimeUp }) {
+function iconBtnStyle(active, disabled) {
+  return {
+    width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+    background: active ? 'rgba(178,136,255,0.25)' : 'rgba(37,32,68,0.7)',
+    border: `1px solid ${active ? 'var(--accent)' : '#3e376e'}`,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.35 : 1,
+  };
+}
+
+function ScreenHeader({ session, revealed, onNext, onEyeClick, eyeTitle, eyeActive }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 1380, gap: 16 }}>
+      <div style={{ fontSize: 14 }}>
+        <span style={{ color: '#b288ff', fontWeight: 700 }}>{session.quiz.title}</span>
+        <span className="dim"> · שאלה {session.currentIndex + 1} מתוך {session.quiz.questions.length}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {revealed && (
+          <button type="button" onClick={onNext} title="שאלה הבאה" style={iconBtnStyle(false)}>
+            <RightSquareIcon size={24} />
+          </button>
+        )}
+        <button type="button" onClick={onEyeClick} title={eyeTitle} style={iconBtnStyle(eyeActive)}>
+          <EyeIcon size={24} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuestionScreen({ session, onTimeUp }) {
   const q = session.quiz.questions[session.currentIndex];
   const [secondsLeft, setSecondsLeft] = useState(q.timeLimit);
   const firedRef = useRef(false);
   const answers = session.answers?.[session.currentIndex] || {};
-  const counts = [0, 0, 0, 0];
-  Object.values(answers).forEach((a) => { if (a.optionIndex >= 0 && a.optionIndex < 4) counts[a.optionIndex]++; });
   const players = session.players || {};
   const answeredCount = Object.keys(answers).length;
   const totalPlayers = Object.keys(players).length;
+  const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
 
   useEffect(() => {
     firedRef.current = false;
@@ -150,73 +178,46 @@ function QuestionScreen({ pin, session, onTimeUp }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.currentIndex, session.questionStartedAt]);
 
-  async function toggleShowWho() {
-    await update(ref(db, `sessions/${pin}`), { showWhoChose: !session.showWhoChose });
-  }
-
-  async function endNow() {
+  function skipToAnswers() {
     if (!firedRef.current) { firedRef.current = true; onTimeUp(); }
   }
 
-  const voters = session.showWhoChose
-    ? [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]))
-    : undefined;
-
   return (
-    <div style={{ width: '100%', maxWidth: 1400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
-      <div className="dim" style={{ fontSize: 18 }}>שאלה {session.currentIndex + 1} מתוך {session.quiz.questions.length}</div>
-      <div className="card pop-in" style={{ width: '100%', textAlign: 'center', padding: 48, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <Timer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} size={120} />
-        </div>
-        <div className="title" style={{ fontSize: 44, marginBottom: 20 }}>{q.text}</div>
-        {q.imageURL && <img src={q.imageURL} alt="" style={{ maxWidth: '100%', maxHeight: '48vh', borderRadius: 20, marginBottom: 20, alignSelf: 'center' }} />}
-        <div className="dim" style={{ marginBottom: 20, fontSize: 18 }}>{answeredCount} / {totalPlayers} ענו</div>
-        <BarChart counts={counts} options={q.options} revealed={false} voters={voters} />
-      </div>
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button className="btn btn-secondary" onClick={toggleShowWho}>
-          {session.showWhoChose ? 'הסתר מי בחר מה' : '👀 הצג מי בחר מה'}
-        </button>
-        <button className="btn" onClick={endNow}>⏭ סיום שאלה עכשיו</button>
-      </div>
+    <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
+      <ScreenHeader session={session} revealed={false} onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" />
+      <QuestionCard
+        q={q}
+        revealed={false}
+        secondsLeft={secondsLeft}
+        voters={voters}
+        showWho={session.showWhoChose}
+        meta={<div className="dim" style={{ fontSize: 14 }}>{answeredCount} / {totalPlayers} ענו</div>}
+      />
     </div>
   );
 }
 
 function RevealScreen({ pin, session, onNext }) {
   const q = session.quiz.questions[session.currentIndex];
-  const [countdown, setCountdown] = useState(REVEAL_SECONDS);
   const answers = session.answers?.[session.currentIndex] || {};
   const players = session.players || {};
-  const counts = [0, 0, 0, 0];
-  Object.values(answers).forEach((a) => { if (a.optionIndex >= 0 && a.optionIndex < 4) counts[a.optionIndex]++; });
   const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
 
-  useEffect(() => {
-    setCountdown(REVEAL_SECONDS);
-    const id = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(id);
-  }, [session.currentIndex]);
-
-  const isLast = session.currentIndex === session.quiz.questions.length - 1;
-  const displayImage = q.answerImageURL || q.imageURL;
+  async function toggleShowWho() {
+    await update(ref(db, `sessions/${pin}`), { showWhoChose: !session.showWhoChose });
+  }
 
   return (
-    <div style={{ width: '100%', maxWidth: 1400, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
-      <div className="card pop-in" style={{ width: '100%', textAlign: 'center', padding: 48, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ fontSize: 20, fontWeight: 400, marginBottom: 16, color: 'var(--text-dim)' }}>{q.text}</div>
-        {displayImage && <img src={displayImage} alt="" style={{ maxWidth: '100%', maxHeight: '48vh', borderRadius: 20, marginBottom: 20, alignSelf: 'center' }} />}
-        {q.answerExplanation && <div style={{ fontSize: 30, fontWeight: 800, marginBottom: 20 }}>{q.answerExplanation}</div>}
-        <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--opt-' + q.correctIndex + ')', marginBottom: 20 }}>
-          ✅ {q.options[q.correctIndex]}
-        </div>
-        <BarChart counts={counts} options={q.options} correctIndex={q.correctIndex} revealed={true} voters={voters} />
-      </div>
-      <button className="btn" disabled={countdown > 0} onClick={onNext} style={{ fontSize: 20, padding: '16px 36px' }}>
-        {countdown > 0 ? `הבא בעוד ${countdown}...` : isLast ? '🏆 הצגת תוצאות סופיות' : 'שאלה הבאה →'}
-      </button>
+    <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
+      <ScreenHeader
+        session={session}
+        revealed={true}
+        onNext={onNext}
+        onEyeClick={toggleShowWho}
+        eyeTitle={session.showWhoChose ? 'הסתר מי בחר מה' : 'הצג מי בחר מה'}
+        eyeActive={session.showWhoChose}
+      />
+      <QuestionCard q={q} revealed={true} voters={voters} showWho={session.showWhoChose} />
     </div>
   );
 }
@@ -277,17 +278,21 @@ function PresenterInner() {
     }
   }
 
+  const isLiveScreen = pin && session && (session.status === 'question' || session.status === 'reveal');
+
   return (
     <div className="screen">
-      <div style={{ width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Link to="/" className="dim" style={{ textDecoration: 'none' }}>← חזרה</Link>
-        {session?.quiz && <div className="dim">{session.quiz.title}</div>}
-        <div style={{ width: 60 }} />
-      </div>
+      {!isLiveScreen && (
+        <div style={{ width: '100%', maxWidth: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <Link to="/" className="dim" style={{ textDecoration: 'none' }}>← חזרה</Link>
+          {session?.quiz && <div className="dim">{session.quiz.title}</div>}
+          <div style={{ width: 60 }} />
+        </div>
+      )}
 
       {!pin && <QuizSelect onStart={setPin} />}
       {pin && session && session.status === 'lobby' && <Lobby pin={pin} session={session} />}
-      {pin && session && session.status === 'question' && <QuestionScreen pin={pin} session={session} onTimeUp={goToReveal} />}
+      {pin && session && session.status === 'question' && <QuestionScreen session={session} onTimeUp={goToReveal} />}
       {pin && session && session.status === 'reveal' && <RevealScreen pin={pin} session={session} onNext={nextQuestion} />}
       {pin && session && session.status === 'final' && <FinalScreen session={session} onRestart={() => setPin(null)} />}
     </div>

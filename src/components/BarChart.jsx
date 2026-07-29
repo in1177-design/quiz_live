@@ -1,6 +1,6 @@
 const SHAPES = ['▲', '◆', '●', '■'];
 
-function AvatarStack({ voters }) {
+export function AvatarStack({ voters }) {
   if (!voters?.length) return null;
   const shown = voters.slice(0, 6);
   return (

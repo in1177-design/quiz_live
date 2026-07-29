@@ -13,9 +13,6 @@ function Home() {
           <Link to="/play" className="btn" style={{ textDecoration: 'none', textAlign: 'center' }}>
             📱 הצטרפות כשחקן/ית
           </Link>
-          <Link to="/present" className="btn btn-secondary" style={{ textDecoration: 'none', textAlign: 'center' }}>
-            🖥️ מסך מנחה (מצגת)
-          </Link>
           <Link to="/admin" className="btn btn-secondary" style={{ textDecoration: 'none', textAlign: 'center' }}>
             ⚙️ ניהול חידונים
           </Link>
