@@ -1,5 +1,14 @@
 const SHAPES = ['▲', '◆', '●', '■'];
 
+const PASTELS = ['#fca5a5', '#fdba74', '#fde047', '#bef264', '#86efac', '#5eead4', '#7dd3fc', '#93c5fd', '#c4b5fd', '#f0abfc', '#f9a8d4', '#fca5a5'];
+
+function pastelFor(seed) {
+  const s = String(seed ?? '');
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  return PASTELS[Math.abs(hash) % PASTELS.length];
+}
+
 export function AvatarStack({ voters }) {
   if (!voters?.length) return null;
   const shown = voters.slice(0, 6);
@@ -10,9 +19,9 @@ export function AvatarStack({ voters }) {
           key={idx}
           title={p?.name}
           style={{
-            width: 34, height: 34, borderRadius: '50%', border: '2px solid var(--bg-1)',
+            width: 34, height: 34, borderRadius: '50%', border: `2px solid ${pastelFor(p?.name ?? idx)}`,
             marginInlineStart: idx === 0 ? 0 : -14, overflow: 'hidden', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'var(--surface-strong)', fontSize: 16, flexShrink: 0,
+            justifyContent: 'center', background: '#ffffff', fontSize: 16, flexShrink: 0,
             zIndex: shown.length - idx,
           }}
         >
@@ -23,9 +32,9 @@ export function AvatarStack({ voters }) {
       ))}
       {voters.length > 6 && (
         <div style={{
-          width: 34, height: 34, borderRadius: '50%', border: '2px solid var(--bg-1)', marginInlineStart: -14,
-          background: 'var(--surface-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700, flexShrink: 0,
+          width: 34, height: 34, borderRadius: '50%', border: '2px solid #c4b5fd', marginInlineStart: -14,
+          background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 700, color: '#1a1440', flexShrink: 0,
         }}>
           +{voters.length - 6}
         </div>

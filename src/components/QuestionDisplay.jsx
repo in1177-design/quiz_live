@@ -20,25 +20,33 @@ export function PillTimer({ secondsLeft, totalSeconds }) {
   );
 }
 
-export function AnswerGrid({ options, correctIndex, revealed, voters, showWho }) {
+export function AnswerGrid({ options, correctIndex, revealed, voters }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, width: '100%' }}>
       {options.map((opt, i) => {
         const isCorrect = i === correctIndex;
         const muted = revealed && !isCorrect;
+        const count = voters?.[i]?.length || 0;
         const badge = (
           <div style={{ width: 32, height: 32, borderRadius: 16, background: 'rgba(255,255,255,0.31)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: 'white', flexShrink: 0 }}>
             {i + 1}
           </div>
         );
         const text = <div style={{ flex: 1, minWidth: 0, textAlign: 'right', fontWeight: 700, fontSize: 24, color: 'white' }}>{opt}</div>;
-        const avatars = showWho && voters?.[i]?.length ? <AvatarStack voters={voters[i]} /> : null;
+        const voteCount = <div style={{ fontWeight: 800, fontSize: 20, color: 'white', flexShrink: 0, minWidth: 20, textAlign: 'center' }}>{count}</div>;
         return (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 12, minHeight: 58, padding: '12px 16px', borderRadius: 14,
-            background: muted ? '#3e376e' : `var(--opt-${i})`, transition: 'background 0.4s ease',
-          }}>
-            {avatars}{badge}{text}
+          <div key={i} style={{ position: 'relative' }}>
+            {revealed && count > 0 && (
+              <div style={{ position: 'absolute', top: '50%', left: 12, transform: 'translateY(-50%)', zIndex: 5 }}>
+                <AvatarStack voters={voters[i]} />
+              </div>
+            )}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, minHeight: 58, padding: '12px 16px', borderRadius: 14,
+              background: muted ? '#3e376e' : `var(--opt-${i})`, transition: 'background 0.4s ease',
+            }}>
+              {badge}{text}{voteCount}
+            </div>
           </div>
         );
       })}
@@ -48,7 +56,7 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, showWho })
 
 const FADE = 'opacity 0.6s ease';
 
-export function QuestionCard({ q, revealed, secondsLeft, voters, showWho, headerLabel }) {
+export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel }) {
   const qImg = q.imageURL;
   const aImg = q.answerImageURL || q.imageURL;
   const hasAnyImage = !!(qImg || aImg);
@@ -85,7 +93,7 @@ export function QuestionCard({ q, revealed, secondsLeft, voters, showWho, header
         )}
       </div>
 
-      <AnswerGrid options={q.options} correctIndex={q.correctIndex} revealed={revealed} voters={voters} showWho={showWho} />
+      <AnswerGrid options={q.options} correctIndex={q.correctIndex} revealed={revealed} voters={voters} />
     </div>
   );
 }

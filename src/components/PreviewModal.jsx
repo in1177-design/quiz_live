@@ -69,7 +69,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
       </div>
 
       <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} showWho={false} />
+        <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} />
       </div>
 
       {draft && (

@@ -44,7 +44,6 @@ function QuizSelect({ onStart }) {
       status: 'lobby',
       currentIndex: -1,
       questionStartedAt: null,
-      showWhoChose: false,
       createdAt: Date.now(),
     });
     onStart(pin);
@@ -191,10 +190,10 @@ function CornerIconButton({ onClick, title, disabled, style, children }) {
   );
 }
 
-function CornerActionButtons({ onEyeClick, eyeTitle, onNext, nextEnabled }) {
+function CornerActionButtons({ onEyeClick, eyeTitle, eyeEnabled, onNext, nextEnabled }) {
   return (
     <>
-      <CornerIconButton onClick={onEyeClick} title={eyeTitle} style={{ position: 'fixed', bottom: 78, right: 20, zIndex: 50 }}>
+      <CornerIconButton onClick={onEyeClick} title={eyeTitle} disabled={!eyeEnabled} style={{ position: 'fixed', bottom: 78, right: 20, zIndex: 50 }}>
         <EyeIcon size={22} />
       </CornerIconButton>
       <CornerIconButton onClick={onNext} title="שאלה הבאה" disabled={!nextEnabled} style={{ position: 'fixed', bottom: 20, right: 74, zIndex: 50 }}>
@@ -235,10 +234,6 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
     if (!firedRef.current) { firedRef.current = true; onTimeUp(); }
   }
 
-  async function toggleShowWho() {
-    await update(ref(db, `sessions/${pin}`), { showWhoChose: !session.showWhoChose });
-  }
-
   return (
     <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
       <QuestionCard
@@ -246,12 +241,12 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
         revealed={revealed}
         secondsLeft={secondsLeft}
         voters={voters}
-        showWho={session.showWhoChose}
         headerLabel={`${session.quiz.title} · שאלה ${session.currentIndex + 1} מתוך ${session.quiz.questions.length}`}
       />
       <CornerActionButtons
-        onEyeClick={revealed ? toggleShowWho : skipToAnswers}
-        eyeTitle={revealed ? (session.showWhoChose ? 'הסתר מי בחר מה' : 'הצג מי בחר מה') : 'דלג לתשובות'}
+        onEyeClick={skipToAnswers}
+        eyeTitle="דלג לתשובות"
+        eyeEnabled={!revealed}
         onNext={onNext}
         nextEnabled={revealed}
       />
