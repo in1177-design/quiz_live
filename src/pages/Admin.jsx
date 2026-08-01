@@ -47,7 +47,7 @@ const emptySlide = () => ({
   uploading: false,
 });
 
-function SlideEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown }) {
+function SlideEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown, coverImageURL }) {
   async function handleImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -81,12 +81,12 @@ function SlideEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDele
       <div className="card" style={{ padding: 24, display: 'flex', gap: 16 }}>
         {arrowsColumn}
         <div style={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-          {q.imageURL ? (
-            <img src={q.imageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
+          {q.imageURL || coverImageURL ? (
+            <img src={q.imageURL || coverImageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
           ) : (
             <div style={{ width: '100%', height: 100, borderRadius: 12, background: 'var(--surface-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={26} /></div>
           )}
-          <button type="button" className="btn btn-secondary" disabled={!q.imageURL} onClick={onPreview} style={{ width: '100%', fontSize: 13, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><EyeIcon size={18} /> תצוגה מקדימה</button>
+          <button type="button" className="btn btn-secondary" disabled={!q.imageURL && !coverImageURL} onClick={onPreview} style={{ width: '100%', fontSize: 13, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><EyeIcon size={18} /> תצוגה מקדימה</button>
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 18, textAlign: 'right' }}>סלייד תמונה · {sizeLabel}</div>
@@ -139,7 +139,7 @@ function SlideEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDele
   );
 }
 
-function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown }) {
+function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown, coverImageURL }) {
   const isMobile = useIsMobile();
 
   async function handleImage(e) {
@@ -170,8 +170,8 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
 
   const imageColumn = (
     <div style={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-      {q.imageURL ? (
-        <img src={q.imageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
+      {q.imageURL || coverImageURL ? (
+        <img src={q.imageURL || coverImageURL} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 12, display: 'block' }} />
       ) : (
         <div style={{ width: '100%', height: 100, borderRadius: 12, background: 'var(--surface-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={26} /></div>
       )}
@@ -181,8 +181,8 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
 
   const explanationBox = (
     <div style={{ background: 'rgba(37,32,68,0.7)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      {q.answerImageURL && (
-        <img src={q.answerImageURL} alt="" style={{ width: 150, height: 100, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
+      {(q.answerImageURL || q.imageURL || coverImageURL) && (
+        <img src={q.answerImageURL || q.imageURL || coverImageURL} alt="" style={{ width: 150, height: 100, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
       )}
       <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ background: 'var(--surface-strong)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -207,8 +207,8 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
           <button type="button" onClick={onEdit} title="עריכת שאלה" style={{ border: '1px solid var(--border)', borderRadius: 10, width: 44, height: 44, background: 'none', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><EditIcon size={20} /></button>
         </div>
 
-        {q.imageURL && (
-          <img src={q.imageURL} alt="" style={{ width: '100%', borderRadius: 16, objectFit: 'cover', maxHeight: 220 }} />
+        {(q.imageURL || coverImageURL) && (
+          <img src={q.imageURL || coverImageURL} alt="" style={{ width: '100%', borderRadius: 16, objectFit: 'cover', maxHeight: 220 }} />
         )}
 
         <div style={{ fontWeight: 700, fontSize: 18, textAlign: 'right' }}>{index + 1}. {q.text}</div>
@@ -640,6 +640,7 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
             onPreview={() => setPreviewIndex(idx)}
             onMoveUp={() => moveQuestion(idx, -1)}
             onMoveDown={() => moveQuestion(idx, 1)}
+            coverImageURL={coverImageURL}
           />
         );
       })}
@@ -663,6 +664,7 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
           quizTitle={title.trim() || 'חידון חדש'}
           onSaveQuestion={(idx, updated) => updateQuestion(idx, updated)}
           onClose={() => setPreviewIndex(null)}
+          coverImageURL={coverImageURL}
         />
       )}
     </div>
@@ -812,6 +814,7 @@ function QuizList({ quizzes, onEdit, onAddNew }) {
           quizTitle={previewQuiz.title}
           onSaveQuestion={handleSaveQuestion}
           onClose={() => setPreviewQuiz(null)}
+          coverImageURL={previewQuiz.coverImageURL}
         />
       )}
     </div>

@@ -3,9 +3,10 @@ import { QuestionCard } from './QuestionDisplay.jsx';
 import EditingQuestionCard from './QuestionEditorCard.jsx';
 import { EyeIcon, EditIcon, LeftSquareIcon, RightSquareIcon, CloseIcon, ImageIcon } from './icons.jsx';
 
-function SlidePreview({ item }) {
-  const image = item.imageURL ? (
-    <img src={item.imageURL} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+function SlidePreview({ item, coverImageURL }) {
+  const src = item.imageURL || coverImageURL;
+  const image = src ? (
+    <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
   ) : (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={64} /></div>
   );
@@ -31,7 +32,7 @@ function iconBtnStyle(active, disabled) {
   };
 }
 
-export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion }) {
+export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion, coverImageURL }) {
   const [index, setIndex] = useState(startIndex);
   const [revealed, setRevealed] = useState(false);
   const [draft, setDraft] = useState(null);
@@ -88,7 +89,9 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
       </div>
 
       <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        {isSlide ? <SlidePreview item={q} /> : <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} />}
+        {isSlide
+          ? <SlidePreview item={q} coverImageURL={coverImageURL} />
+          : <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} />}
       </div>
 
       {draft && (

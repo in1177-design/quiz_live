@@ -167,8 +167,8 @@ function QuestionButtons({ pin, identity, session }) {
 
       <div style={{ fontWeight: 700, fontSize: 18, textAlign: 'center', marginBottom: 16 }}>{q.text}</div>
 
-      {q.imageURL && (
-        <img src={q.imageURL} alt="" style={{ width: '100%', borderRadius: 16, display: 'block', marginBottom: 20, maxHeight: '32vh', objectFit: 'cover' }} />
+      {(q.imageURL || session.quiz.coverImageURL) && (
+        <img src={q.imageURL || session.quiz.coverImageURL} alt="" style={{ width: '100%', borderRadius: 16, display: 'block', marginBottom: 20, maxHeight: '32vh', objectFit: 'cover' }} />
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%' }}>
@@ -215,9 +215,10 @@ function QuestionButtons({ pin, identity, session }) {
   );
 }
 
-function SlideView({ item }) {
-  const image = item?.imageURL ? (
-    <img src={item.imageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+function SlideView({ item, coverImageURL }) {
+  const src = item?.imageURL || coverImageURL;
+  const image = src ? (
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
   ) : null;
 
   if (item?.imageSize === 'full') {
@@ -323,10 +324,10 @@ function PlayerInner() {
     <div className="screen" style={{ justifyContent: 'center' }}>
       {session.status === 'lobby' && <Waiting identity={identity} />}
       {session.status === 'question' && <QuestionButtons pin={identity.pin} identity={identity} session={session} />}
-      {session.status === 'slide' && <SlideView item={session.quiz.questions[session.currentIndex]} />}
+      {session.status === 'slide' && <SlideView item={session.quiz.questions[session.currentIndex]} coverImageURL={session.quiz.coverImageURL} />}
       {session.status === 'reveal' && <RevealResult identity={identity} session={session} />}
       {session.status === 'final' && <FinalResult identity={identity} session={session} />}
-      {session.status === 'closing' && <SlideView item={session.quiz.closingSlide} />}
+      {session.status === 'closing' && <SlideView item={session.quiz.closingSlide} coverImageURL={session.quiz.coverImageURL} />}
     </div>
   );
 }

@@ -56,9 +56,9 @@ export function AnswerGrid({ options, correctIndex, revealed, voters }) {
 
 const FADE = 'opacity 0.6s ease';
 
-export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel }) {
-  const qImg = q.imageURL;
-  const aImg = q.answerImageURL || q.imageURL;
+export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, coverImageURL }) {
+  const qImg = q.imageURL || coverImageURL;
+  const aImg = q.answerImageURL || q.imageURL || coverImageURL;
   const hasAnyImage = !!(qImg || aImg);
 
   return (

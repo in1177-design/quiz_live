@@ -246,6 +246,7 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
         revealed={revealed}
         secondsLeft={secondsLeft}
         voters={voters}
+        coverImageURL={session.quiz.coverImageURL}
         headerLabel={`${session.quiz.title} · שאלה ${session.currentIndex + 1} מתוך ${session.quiz.questions.length}`}
       />
       <CornerActionButtons
@@ -259,9 +260,10 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   );
 }
 
-function LiveSlideScreen({ item, onNext, showControls = true }) {
-  const image = item?.imageURL ? (
-    <img src={item.imageURL} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+function LiveSlideScreen({ item, onNext, showControls = true, coverImageURL }) {
+  const src = item?.imageURL || coverImageURL;
+  const image = src ? (
+    <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
   ) : (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={64} /></div>
   );
@@ -397,12 +399,12 @@ function PresenterInner() {
 
       {!pin && <QuizSelect onStart={setPin} />}
       {pin && session && session.status === 'lobby' && <Lobby pin={pin} session={session} />}
-      {isLiveScreen && session.status === 'slide' && <LiveSlideScreen item={session.quiz.questions[session.currentIndex]} onNext={nextQuestion} />}
+      {isLiveScreen && session.status === 'slide' && <LiveSlideScreen item={session.quiz.questions[session.currentIndex]} onNext={nextQuestion} coverImageURL={session.quiz.coverImageURL} />}
       {isLiveScreen && session.status !== 'slide' && <LiveQuestionScreen pin={pin} session={session} onTimeUp={goToReveal} onNext={nextQuestion} />}
       {pin && session && session.status === 'final' && (
         <FinalScreen session={session} onRestart={() => setPin(null)} onNext={session.quiz.closingSlide?.imageURL ? goToClosing : undefined} />
       )}
-      {pin && session && session.status === 'closing' && <LiveSlideScreen item={session.quiz.closingSlide} showControls={false} />}
+      {pin && session && session.status === 'closing' && <LiveSlideScreen item={session.quiz.closingSlide} showControls={false} coverImageURL={session.quiz.coverImageURL} />}
       <AdminCornerLink />
     </div>
   );
