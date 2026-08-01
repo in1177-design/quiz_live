@@ -42,7 +42,7 @@ export function AnswerGrid({ options, correctIndex, revealed, voters }) {
               </div>
             )}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, minHeight: 58, padding: '12px 16px', borderRadius: 14,
+              display: 'flex', alignItems: 'center', gap: 12, minHeight: 100, padding: '16px', borderRadius: 14,
               background: muted ? '#3e376e' : `var(--opt-${i})`, transition: 'background 0.4s ease',
             }}>
               {badge}{text}{voteCount}
@@ -74,7 +74,7 @@ export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel }) 
         </div>
       </div>
 
-      <div className="title" style={{ fontSize: 24, textAlign: 'center', opacity: revealed ? 0.5 : 1, transition: FADE }}>{q.text || '(אין טקסט שאלה)'}</div>
+      <div className="title" style={{ fontSize: 28, textAlign: 'center', opacity: revealed ? 0.5 : 1, transition: FADE }}>{q.text || '(אין טקסט שאלה)'}</div>
 
       <div style={{
         position: 'relative', width: '100%', maxWidth: 1240, aspectRatio: '1240 / 800', borderRadius: 20,

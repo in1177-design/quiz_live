@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ref, onValue, set, update, remove, get } from 'firebase/database';
 import { ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Link, useNavigate } from 'react-router-dom';
@@ -286,6 +286,7 @@ function cleanQuestion(q) {
 function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
   const navigate = useNavigate();
   const [quizId] = useState(() => existingQuiz?.id || generateId());
+  const [createdAt] = useState(() => existingQuiz?.createdAt || Date.now());
   const [title, setTitle] = useState(existingQuiz?.title || '');
   const [coverImageURL, setCoverImageURL] = useState(existingQuiz?.coverImageURL || '');
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -303,6 +304,7 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
   );
   const [previewIndex, setPreviewIndex] = useState(null);
   const [launching, setLaunching] = useState(false);
+  const [autosaved, setAutosaved] = useState(false);
 
   function updateQuestion(idx, updated) {
     setQuestions((qs) => qs.map((q, i) => (i === idx ? updated : q)));
@@ -406,16 +408,45 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
   const canAddNext = questions.length > 0 && questions[questions.length - 1].saved;
   const canSaveQuiz = title.trim() && savedCount > 0 && questions.every((q) => q.saved);
 
-  async function saveQuiz() {
+  const stateRef = useRef();
+  stateRef.current = { title, coverImageURL, defaultTimeLimit, answerButtonStyle, closingSlide, questions };
+
+  async function persistQuiz(s = stateRef.current) {
+    if (!s.title.trim()) return;
     await set(ref(db, `quizzes/${quizId}`), {
-      title: title.trim(),
-      createdAt: Date.now(),
-      coverImageURL: coverImageURL || null,
-      defaultTimeLimit,
-      answerButtonStyle,
-      closingSlide: closingSlide?.imageURL ? { imageURL: closingSlide.imageURL, imageSize: closingSlide.imageSize === 'full' ? 'full' : 'contained' } : null,
-      questions: questions.map(cleanQuestion),
+      title: s.title.trim(),
+      createdAt,
+      coverImageURL: s.coverImageURL || null,
+      defaultTimeLimit: s.defaultTimeLimit,
+      answerButtonStyle: s.answerButtonStyle,
+      closingSlide: s.closingSlide?.imageURL ? { imageURL: s.closingSlide.imageURL, imageSize: s.closingSlide.imageSize === 'full' ? 'full' : 'contained' } : null,
+      questions: s.questions.map(cleanQuestion),
     });
+    setAutosaved(true);
+  }
+
+  const initialSnapshotRef = useRef(null);
+  if (initialSnapshotRef.current === null) {
+    initialSnapshotRef.current = JSON.stringify(stateRef.current);
+  }
+
+  useEffect(() => {
+    if (!title.trim()) return;
+    if (JSON.stringify(stateRef.current) === initialSnapshotRef.current) return;
+    const timer = setTimeout(() => { persistQuiz(); }, 800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, coverImageURL, defaultTimeLimit, answerButtonStyle, closingSlide, questions]);
+
+  useEffect(() => {
+    return () => {
+      if (JSON.stringify(stateRef.current) !== initialSnapshotRef.current) persistQuiz();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function saveQuiz() {
+    await persistQuiz();
     onDone();
   }
 
@@ -617,9 +648,12 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
         <PlusIcon size={22} /> הוסף שאלה הבאה
       </button>
 
-      <button type="button" className="btn" disabled={!canSaveQuiz} onClick={saveQuiz} style={{ fontSize: 18 }}>
-        💾 {existingQuiz ? 'עדכון חידון' : 'שמירת חידון'} ({savedCount} שאלות)
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button type="button" className="btn" disabled={!canSaveQuiz} onClick={saveQuiz} style={{ fontSize: 18 }}>
+          💾 {existingQuiz ? 'סיום עריכה' : 'שמירת חידון'} ({savedCount} שאלות)
+        </button>
+        {autosaved && <span className="dim" style={{ fontSize: 13 }}>✓ הכל נשמר אוטומטית</span>}
+      </div>
 
       {previewIndex !== null && (
         <PreviewModal

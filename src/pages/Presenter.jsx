@@ -296,7 +296,7 @@ function FinalScreen({ session, onRestart, onNext }) {
   const rest = players.slice(3, 10);
 
   return (
-    <div style={{ width: '100%', maxWidth: 800, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, flex: 1, justifyContent: 'center' }}>
+    <div style={{ width: '100%', maxWidth: 980, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, flex: 1, justifyContent: 'center' }}>
       <div className="title" style={{ fontSize: 44 }}>🏆 התוצאות הסופיות</div>
       <Podium top3={top3} />
       {rest.length > 0 && (
