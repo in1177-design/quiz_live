@@ -122,14 +122,11 @@ export function FullBackgroundQuestionCard({ q, revealed, secondsLeft, voters, h
         </div>
       )}
 
-      <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', justifyContent: 'center' }}>
-        {!revealed && !manualTimer && <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />}
-        {revealed && q.answerExplanation && (
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#f59e0b', textAlign: 'center', maxWidth: 900, textShadow: '0 2px 10px rgba(0,0,0,0.85)', direction: ltr ? 'ltr' : 'rtl' }}>
-            {q.answerExplanation}
-          </div>
-        )}
-      </div>
+      {!revealed && !manualTimer && (
+        <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', justifyContent: 'center' }}>
+          <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
+        </div>
+      )}
 
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '0 32px' }}>
         <div style={{ fontSize: 30, fontWeight: 800, color: 'white', textAlign: 'center', maxWidth: 1200, textShadow: '0 2px 12px rgba(0,0,0,0.9)', direction: ltr ? 'ltr' : 'rtl' }}>
@@ -138,6 +135,14 @@ export function FullBackgroundQuestionCard({ q, revealed, secondsLeft, voters, h
         <div style={{ width: '100%', maxWidth: 1240 }}>
           <AnswerGrid options={q.options} correctIndex={q.correctIndex} revealed={revealed} voters={voters} ltr={ltr} />
         </div>
+        {revealed && q.answerExplanation && (
+          <div style={{
+            background: 'rgba(0,0,0,0.6)', borderRadius: 16, padding: '16px 28px', maxWidth: 1000,
+            fontSize: 24, fontWeight: 700, color: '#f59e0b', textAlign: 'center', direction: ltr ? 'ltr' : 'rtl',
+          }}>
+            {q.answerExplanation}
+          </div>
+        )}
       </div>
     </div>
   );
