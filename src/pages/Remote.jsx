@@ -226,6 +226,9 @@ function RemoteControls({ pin, session, onExit }) {
         <button type="button" style={bigButtonStyle('linear-gradient(135deg, var(--accent), #22d3ee)')} onClick={resumeGame}>
           ▶ חזרה לחידון
         </button>
+        <span onClick={onExit} style={{ fontSize: 12, color: 'var(--dim)', cursor: 'pointer', textDecoration: 'underline', textAlign: 'center' }}>
+          🔁 בחירת חידון אחר
+        </span>
       </div>
     );
   }
@@ -233,6 +236,9 @@ function RemoteControls({ pin, session, onExit }) {
   return (
     <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <span onClick={onExit} style={{ fontSize: 12, color: 'var(--dim)', cursor: 'pointer', textDecoration: 'underline' }}>
+          🔁 בחירת חידון אחר
+        </span>
         <span
           onClick={() => copy('present', presentUrl(pin))}
           style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}
