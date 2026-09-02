@@ -332,6 +332,13 @@ function PlayerInner() {
       {session.status === 'reveal' && <RevealResult identity={identity} session={session} />}
       {session.status === 'final' && <FinalResult identity={identity} session={session} />}
       {session.status === 'closing' && <SlideView item={session.quiz.closingSlide} coverImageURL={session.quiz.coverImageURL} />}
+      {session.status === 'paused' && (
+        <div className="card pop-in" style={{ textAlign: 'center', maxWidth: 360 }}>
+          <div style={{ fontSize: 44, marginBottom: 10 }}>⏸️</div>
+          <div style={{ fontWeight: 700, fontSize: 20 }}>הפסקה קצרה</div>
+          <div className="dim">נחזור לחידון בעוד רגע...</div>
+        </div>
+      )}
     </div>
   );
 }

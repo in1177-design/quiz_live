@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Link } from 'react-router-dom';
 import Admin from './pages/Admin.jsx';
 import Presenter from './pages/Presenter.jsx';
 import Player from './pages/Player.jsx';
+import Remote from './pages/Remote.jsx';
 
 function Home() {
   return (
@@ -15,6 +16,9 @@ function Home() {
           </Link>
           <Link to="/admin" className="btn btn-secondary" style={{ textDecoration: 'none', textAlign: 'center' }}>
             ⚙️ ניהול חידונים
+          </Link>
+          <Link to="/remote" className="btn btn-secondary" style={{ textDecoration: 'none', textAlign: 'center' }}>
+            🎮 שלט מנחה
           </Link>
         </div>
       </div>
@@ -30,6 +34,7 @@ export default function App() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/present" element={<Presenter />} />
         <Route path="/play" element={<Player />} />
+        <Route path="/remote" element={<Remote />} />
       </Routes>
     </HashRouter>
   );

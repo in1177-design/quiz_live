@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ref, onValue, set, update } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import Podium from '../components/Podium.jsx';
@@ -366,7 +366,12 @@ function AdminCornerLink() {
 }
 
 function PresenterInner() {
-  const [pin, setPinState] = useState(() => localStorage.getItem('quiz_presenter_pin') || null);
+  const [searchParams] = useSearchParams();
+  const urlPin = searchParams.get('pin') || '';
+  // A ?pin= in the URL lets this screen (e.g. a projector/TV) be pointed at a session from
+  // another device — the quiz's permanent join code doubles as its presenter-session pin, so
+  // /present?pin=<code> always shows whatever that session currently displays.
+  const [pin, setPinState] = useState(() => urlPin || localStorage.getItem('quiz_presenter_pin') || null);
   const [session, setSession] = useState(null);
 
   function setPin(newPin) {
@@ -374,6 +379,11 @@ function PresenterInner() {
     else localStorage.removeItem('quiz_presenter_pin');
     setPinState(newPin);
   }
+
+  useEffect(() => {
+    if (urlPin) setPin(urlPin);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPin]);
 
   useEffect(() => {
     if (!pin) return;
@@ -434,6 +444,7 @@ function PresenterInner() {
         <FinalScreen session={session} onRestart={() => setPin(null)} onNext={session.quiz.closingSlide?.imageURL ? goToClosing : undefined} />
       )}
       {pin && session && session.status === 'closing' && <LiveSlideScreen item={session.quiz.closingSlide} showControls={false} coverImageURL={session.quiz.coverImageURL} />}
+      {pin && session && session.status === 'paused' && <LiveSlideScreen item={{ imageSize: 'full' }} showControls={false} coverImageURL={session.quiz.coverImageURL} />}
       <AdminCornerLink />
     </div>
   );
