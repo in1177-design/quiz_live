@@ -16,6 +16,24 @@ export function ReplaceIcon({ size = 18 }) {
   );
 }
 
+export function PauseIcon({ size = 18 }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="6" y="4" width="4" height="16" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="14" y="4" width="4" height="16" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+export function RefreshIcon({ size = 18 }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M20 11A8 8 0 1 0 18.5 16.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M20 5V11H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function PlusIcon({ size = 18 }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none">

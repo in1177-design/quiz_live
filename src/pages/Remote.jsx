@@ -5,6 +5,7 @@ import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 import { DISPLAY_LANGUAGES } from '../utils/languages.js';
+import { PauseIcon, RefreshIcon } from '../components/icons.jsx';
 
 function presentUrl(pin) {
   return `${window.location.origin}${window.location.pathname}#/present?pin=${pin}`;
@@ -213,10 +214,11 @@ function toggleBtnStyle(active) {
   };
 }
 
-function controlBtnStyle(background) {
+function iconOnlyBtnStyle() {
   return {
-    border: 'none', borderRadius: 12, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-    background, color: 'white', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+    width: 40, height: 40, borderRadius: 12, flexShrink: 0, border: '1px solid #3e376e',
+    background: 'rgba(37,32,68,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: 'white', cursor: 'pointer',
   };
 }
 
@@ -378,8 +380,12 @@ function RemoteControls({ pin, session, onExit }) {
             </button>
           </div>
         )}
-        <button type="button" onClick={restartGame} style={controlBtnStyle('#f59e0b')}>🔄 התחל מחדש</button>
-        <button type="button" onClick={pauseGame} style={controlBtnStyle('#ef4444')}>⏸ עצור</button>
+        <button type="button" onClick={restartGame} style={iconOnlyBtnStyle()} title="התחל מחדש" aria-label="התחל מחדש">
+          <RefreshIcon size={20} />
+        </button>
+        <button type="button" onClick={pauseGame} style={iconOnlyBtnStyle()} title="עצור" aria-label="עצור">
+          <PauseIcon size={20} />
+        </button>
       </div>
 
       {isLiveItem ? (
