@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ref, onValue, set, update } from 'firebase/database';
 import { db } from '../firebase.js';
@@ -14,6 +14,20 @@ function QuizPicker({ onStart }) {
   const [quizzes, setQuizzes] = useState([]);
   const [selected, setSelected] = useState('');
   const [starting, setStarting] = useState(false);
+  const [open, setOpen] = useState(false);
+  const pickerRef = useRef(null);
+
+  // Closes the dropdown on any click outside it. A position:fixed overlay doesn't work here
+  // because the card's pop-in animation gives it a transform, which makes it the containing
+  // block for fixed-position children instead of the viewport — so a document listener is used.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
 
   useEffect(() => {
     return onValue(ref(db, 'quizzes'), (snap) => {
@@ -23,6 +37,8 @@ function QuizPicker({ onStart }) {
       setSelected((s) => s || (list[0]?.id ?? ''));
     });
   }, []);
+
+  const selectedQuiz = quizzes.find((q) => q.id === selected);
 
   async function handleStart() {
     const quiz = quizzes.find((q) => q.id === selected);
@@ -62,11 +78,40 @@ function QuizPicker({ onStart }) {
         <div className="dim">אין חידונים עדיין — צרו אחד בעמוד הניהול.</div>
       ) : (
         <>
-          <select className="input" style={{ width: '100%', marginBottom: 16 }} value={selected} onChange={(e) => setSelected(e.target.value)}>
-            {quizzes.map((q) => (
-              <option key={q.id} value={q.id}>{q.title} ({q.questions?.length || 0} שאלות)</option>
-            ))}
-          </select>
+          <div ref={pickerRef} style={{ position: 'relative', marginBottom: 16 }}>
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="input"
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'right' }}
+            >
+              <span>
+                {selectedQuiz?.title}
+                <span className="dim" style={{ fontSize: 13, marginRight: 6 }}>({selectedQuiz?.questions?.length || 0} שאלות)</span>
+              </span>
+              <span style={{ display: 'inline-block', transition: 'transform 0.15s', transform: open ? 'rotate(180deg)' : 'none' }}>▾</span>
+            </button>
+            {open && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 10, maxHeight: 260, overflowY: 'auto',
+                  background: '#211c44', border: '1px solid #3e376e', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+                }}>
+                  {quizzes.map((q) => (
+                    <div
+                      key={q.id}
+                      onClick={() => { setSelected(q.id); setOpen(false); }}
+                      style={{
+                        padding: '12px 16px', cursor: 'pointer', textAlign: 'right',
+                        background: q.id === selected ? 'rgba(178,136,255,0.18)' : 'transparent',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{q.title}</div>
+                      <div className="dim" style={{ fontSize: 12 }}>{q.questions?.length || 0} שאלות</div>
+                    </div>
+                  ))}
+                </div>
+            )}
+          </div>
           <button className="btn" style={{ width: '100%' }} disabled={starting} onClick={handleStart}>
             {starting ? 'יוצר משחק...' : '🚀 הפעלת חידון'}
           </button>
