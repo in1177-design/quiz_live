@@ -38,7 +38,8 @@ function QuizSelect({ onStart }) {
       quiz: {
         title: quiz.title, questions: quiz.questions, coverImageURL: quiz.coverImageURL || null,
         answerButtonStyle: quiz.answerButtonStyle || 'text', questionLayout: quiz.questionLayout || 'boxed',
-        manualTimer: !!quiz.manualTimer, closingSlide: quiz.closingSlide || null,
+        manualTimer: !!quiz.manualTimer, displayLanguage: quiz.displayLanguage || 'he',
+        closingSlide: quiz.closingSlide || null,
       },
       status: 'lobby',
       currentIndex: -1,
@@ -220,6 +221,17 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   const hasImage = !!(q.imageURL || q.answerImageURL || session.quiz.coverImageURL);
   const fullBackground = session.quiz.questionLayout === 'full' && hasImage;
   const manualTimer = !!session.quiz.manualTimer;
+  // The presenter/projector screen shows the quiz's chosen display language when set; players'
+  // phones always show the original Hebrew, regardless of this setting (see Player.jsx).
+  const ltr = !!session.quiz.displayLanguage && session.quiz.displayLanguage !== 'he';
+  const displayQ = ltr
+    ? {
+        ...q,
+        text: q.textTranslated || q.text,
+        options: q.options.map((o, i) => q.optionsTranslated?.[i] || o),
+        answerExplanation: q.answerExplanationTranslated || q.answerExplanation,
+      }
+    : q;
 
   useEffect(() => {
     firedRef.current = false;
@@ -248,7 +260,7 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   if (fullBackground) {
     return (
       <>
-        <FullBackgroundQuestionCard q={q} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} />
+        <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} ltr={ltr} />
         <CornerActionButtons onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" eyeEnabled={!revealed} onNext={onNext} nextEnabled={revealed} />
       </>
     );
@@ -257,13 +269,14 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   return (
     <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
       <QuestionCard
-        q={q}
+        q={displayQ}
         revealed={revealed}
         secondsLeft={secondsLeft}
         voters={voters}
         coverImageURL={session.quiz.coverImageURL}
         headerLabel={headerLabel}
         manualTimer={manualTimer}
+        ltr={ltr}
       />
       <CornerActionButtons
         onEyeClick={skipToAnswers}

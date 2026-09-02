@@ -32,7 +32,7 @@ function iconBtnStyle(active, disabled) {
   };
 }
 
-export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion, coverImageURL, questionLayout, manualTimer }) {
+export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion, coverImageURL, questionLayout, manualTimer, displayLanguage }) {
   const [index, setIndex] = useState(startIndex);
   const [revealed, setRevealed] = useState(false);
   const [draft, setDraft] = useState(null);
@@ -40,6 +40,16 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
   const isSlide = q?.type === 'slide';
   const hasImage = !!(q?.imageURL || q?.answerImageURL || coverImageURL);
   const fullBackground = !isSlide && questionLayout === 'full' && hasImage;
+  const translationLang = displayLanguage && displayLanguage !== 'he' ? displayLanguage : null;
+  const ltr = !!translationLang;
+  const displayQ = q && ltr
+    ? {
+        ...q,
+        text: q.textTranslated || q.text,
+        options: q.options.map((o, i) => q.optionsTranslated?.[i] || o),
+        answerExplanation: q.answerExplanationTranslated || q.answerExplanation,
+      }
+    : q;
 
   function go(delta) {
     setRevealed(false);
@@ -92,8 +102,8 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
 
       <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
         {isSlide && <SlidePreview item={q} coverImageURL={coverImageURL} />}
-        {!isSlide && fullBackground && <FullBackgroundQuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} />}
-        {!isSlide && !fullBackground && <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} />}
+        {!isSlide && fullBackground && <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} ltr={ltr} />}
+        {!isSlide && !fullBackground && <QuestionCard q={displayQ} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} ltr={ltr} />}
       </div>
 
       {draft && (
@@ -104,7 +114,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
           }}
         >
           <div style={{ width: '100%', maxWidth: 1000 }}>
-            <EditingQuestionCard q={draft} quizId={quizId} onChange={setDraft} onSave={finishEdit} onCancel={() => setDraft(null)} />
+            <EditingQuestionCard q={draft} quizId={quizId} onChange={setDraft} onSave={finishEdit} onCancel={() => setDraft(null)} translationLang={translationLang} />
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ import QuestionForm from './QuestionForm.jsx';
 import ImageUploadField from './ImageUploadField.jsx';
 import { ChevronUpCircleIcon, ChevronDownCircleIcon } from './icons.jsx';
 
-export default function EditingQuestionCard({ q, quizId, onChange, onSave, onCancel, index = 0, total = 1, onMoveUp, onMoveDown }) {
+export default function EditingQuestionCard({ q, quizId, onChange, onSave, onCancel, index = 0, total = 1, onMoveUp, onMoveDown, translationLang }) {
   async function handleImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -47,14 +47,14 @@ export default function EditingQuestionCard({ q, quizId, onChange, onSave, onCan
         {arrowsColumn}
         {imageColumn}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancel} hideQuestionImage section="top" />
+          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancel} hideQuestionImage section="top" translationLang={translationLang} />
         </div>
       </div>
       <div style={{
         background: '#1a1531', border: '2px solid #b288ff', borderTop: 'none', borderRadius: '0 0 24px 24px',
         boxShadow: '0 16px 32px rgba(0,0,0,0.5)', padding: 32,
       }}>
-        <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancel} section="bottom" />
+        <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancel} section="bottom" translationLang={translationLang} />
       </div>
     </div>
   );

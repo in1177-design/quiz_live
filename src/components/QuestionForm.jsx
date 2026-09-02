@@ -3,6 +3,7 @@ import { storage } from '../firebase.js';
 import { compressImage } from '../utils/compressImage.js';
 import ImageUploadField from './ImageUploadField.jsx';
 import { CheckIcon } from './icons.jsx';
+import { DISPLAY_LANGUAGES } from '../utils/languages.js';
 
 const lightBoxStyle = {
   background: '#e1ddff',
@@ -16,7 +17,15 @@ const lightBoxStyle = {
   outline: 'none',
 };
 
-export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, onCancel, hideQuestionImage, bare, section }) {
+const translatedBoxStyle = {
+  ...lightBoxStyle,
+  background: '#d8f0ea',
+  textAlign: 'left',
+  direction: 'ltr',
+};
+
+export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, onCancel, hideQuestionImage, bare, section, translationLang }) {
+  const lang = translationLang ? DISPLAY_LANGUAGES[translationLang] : null;
   async function handleImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,11 +67,19 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
   const topContent = (
     <>
       <input
-        style={{ ...lightBoxStyle, width: '100%', marginBottom: 16 }}
+        style={{ ...lightBoxStyle, width: '100%', marginBottom: lang ? 10 : 16 }}
         placeholder="טקסט השאלה"
         value={q.text}
         onChange={(e) => onChange({ ...q, text: e.target.value })}
       />
+      {lang && (
+        <input
+          style={{ ...translatedBoxStyle, width: '100%', marginBottom: 16 }}
+          placeholder={lang.questionPlaceholder}
+          value={q.textTranslated || ''}
+          onChange={(e) => onChange({ ...q, textTranslated: e.target.value })}
+        />
+      )}
 
       <div style={{ background: 'rgba(37,32,68,0.7)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', gap: 16, marginBottom: hideQuestionImage ? 0 : 16, flexWrap: 'wrap' }}>
         <div style={{ width: 150, flexShrink: 0 }}>
@@ -82,6 +99,14 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
             value={q.answerExplanation}
             onChange={(e) => onChange({ ...q, answerExplanation: e.target.value })}
           />
+          {lang && (
+            <textarea
+              style={{ ...translatedBoxStyle, width: '100%', minHeight: 70, resize: 'vertical', fontFamily: 'inherit', fontSize: 14 }}
+              placeholder={lang.explanationPlaceholder}
+              value={q.answerExplanationTranslated || ''}
+              onChange={(e) => onChange({ ...q, answerExplanationTranslated: e.target.value })}
+            />
+          )}
         </div>
       </div>
 
@@ -97,7 +122,7 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
         {q.options.map((opt, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: lang ? 'wrap' : 'nowrap' }}>
             <input
               type="radio"
               name={`correct-${q.id}`}
@@ -107,7 +132,7 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
               style={{ width: 22, height: 22, flexShrink: 0, accentColor: 'var(--accent)' }}
             />
             <input
-              style={{ ...lightBoxStyle, width: '100%', borderInlineStart: `4px solid var(--opt-${i})` }}
+              style={{ ...lightBoxStyle, flex: 1, minWidth: 160, borderInlineStart: `4px solid var(--opt-${i})` }}
               placeholder={`תשובה ${i + 1}`}
               value={opt}
               onChange={(e) => {
@@ -116,6 +141,18 @@ export default function QuestionForm({ q, quizId, onChange, onDone, doneLabel, o
                 onChange({ ...q, options });
               }}
             />
+            {lang && (
+              <input
+                style={{ ...translatedBoxStyle, flex: 1, minWidth: 160, marginInlineStart: 34 }}
+                placeholder={lang.answerPlaceholder(i)}
+                value={q.optionsTranslated?.[i] || ''}
+                onChange={(e) => {
+                  const optionsTranslated = [...(q.optionsTranslated || ['', '', '', ''])];
+                  optionsTranslated[i] = e.target.value;
+                  onChange({ ...q, optionsTranslated });
+                }}
+              />
+            )}
           </div>
         ))}
       </div>

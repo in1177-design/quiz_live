@@ -5,12 +5,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { db, storage } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import PreviewModal from '../components/PreviewModal.jsx';
+import PhonePreviewModal from '../components/PhonePreviewModal.jsx';
 import QuestionForm from '../components/QuestionForm.jsx';
 import EditingQuestionCard from '../components/QuestionEditorCard.jsx';
 import { ImageIcon, PlusIcon, EyeIcon, TrashIcon, EditIcon, PlayIcon, CheckIcon, ChevronUpCircleIcon, ChevronDownCircleIcon, SettingsIcon, ShareIcon, CloseIcon } from '../components/icons.jsx';
 import ImageUploadField from '../components/ImageUploadField.jsx';
 import { compressImage } from '../utils/compressImage.js';
 import { generateId, generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
+import { DISPLAY_LANGUAGES, displayLanguageLabel } from '../utils/languages.js';
 import { QRCodeSVG } from 'qrcode.react';
 
 function useIsMobile(breakpoint = 700) {
@@ -34,6 +36,9 @@ const emptyQuestion = (timeLimit = 25) => ({
   imageURL: '',
   answerImageURL: '',
   answerExplanation: '',
+  textTranslated: '',
+  optionsTranslated: ['', '', '', ''],
+  answerExplanationTranslated: '',
   saved: false,
   uploading: false,
   uploadingAnswer: false,
@@ -140,7 +145,7 @@ function SlideEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDele
   );
 }
 
-function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown, coverImageURL }) {
+function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onDelete, onCancelEdit, onPreview, onMoveUp, onMoveDown, coverImageURL, translationLang }) {
   const isMobile = useIsMobile();
 
   async function handleImage(e) {
@@ -252,7 +257,7 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
           <div style={{ marginBottom: 16 }}>
             <ImageUploadField id={`qimg-mobile-${q.id}`} imageURL={q.imageURL} uploading={q.uploading} onUpload={handleImage} height={180} radius={16} />
           </div>
-          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} hideQuestionImage bare />
+          <QuestionForm q={q} quizId={quizId} onChange={onChange} onDone={onSave} doneLabel="✓ שמירה" onCancel={onCancelEdit} hideQuestionImage bare translationLang={translationLang} />
         </div>
       </div>
     );
@@ -269,6 +274,7 @@ function QuestionEditor({ q, index, total, quizId, onChange, onSave, onEdit, onD
       total={total}
       onMoveUp={onMoveUp}
       onMoveDown={onMoveDown}
+      translationLang={translationLang}
     />
   );
 }
@@ -277,10 +283,17 @@ function cleanQuestion(q) {
   if (q.type === 'slide') {
     return { type: 'slide', imageURL: q.imageURL || null, imageSize: q.imageSize === 'full' ? 'full' : 'contained' };
   }
-  const { text, options, correctIndex, timeLimit, imageURL, answerImageURL, answerExplanation } = q;
+  const {
+    text, options, correctIndex, timeLimit, imageURL, answerImageURL, answerExplanation,
+    textTranslated, optionsTranslated, answerExplanationTranslated,
+  } = q;
+  const hasTranslatedOptions = optionsTranslated?.some((o) => o && o.trim());
   return {
     text, options, correctIndex, timeLimit, imageURL: imageURL || null, answerImageURL: answerImageURL || null,
     answerExplanation: answerExplanation || null,
+    textTranslated: textTranslated || null,
+    optionsTranslated: hasTranslatedOptions ? optionsTranslated.map((o) => o || '') : null,
+    answerExplanationTranslated: answerExplanationTranslated || null,
   };
 }
 
@@ -305,6 +318,7 @@ function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
   const [answerButtonStyle, setAnswerButtonStyle] = useState(quiz?.answerButtonStyle || 'text');
   const [questionLayout, setQuestionLayout] = useState(quiz?.questionLayout || 'boxed');
   const [manualTimer, setManualTimer] = useState(quiz?.manualTimer || false);
+  const [displayLanguage, setDisplayLanguage] = useState(quiz?.displayLanguage || 'he');
   const [closingSlide, setClosingSlide] = useState(quiz?.closingSlide || null);
   const [closingSlideDraft, setClosingSlideDraft] = useState(null);
   const [autosaved, setAutosaved] = useState(false);
@@ -361,7 +375,7 @@ function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
   }
 
   const stateRef = useRef();
-  stateRef.current = { title, coverImageURL, defaultTimeLimit, answerButtonStyle, questionLayout, manualTimer, closingSlide };
+  stateRef.current = { title, coverImageURL, defaultTimeLimit, answerButtonStyle, questionLayout, manualTimer, displayLanguage, closingSlide };
 
   function buildPayload(s) {
     return {
@@ -372,6 +386,7 @@ function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
       answerButtonStyle: s.answerButtonStyle,
       questionLayout: s.questionLayout,
       manualTimer: !!s.manualTimer,
+      displayLanguage: s.displayLanguage || 'he',
       closingSlide: s.closingSlide?.imageURL ? { imageURL: s.closingSlide.imageURL, imageSize: s.closingSlide.imageSize === 'full' ? 'full' : 'contained' } : null,
     };
   }
@@ -395,7 +410,7 @@ function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
     const timer = setTimeout(() => { persist(); }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, coverImageURL, defaultTimeLimit, answerButtonStyle, questionLayout, manualTimer, closingSlide]);
+  }, [title, coverImageURL, defaultTimeLimit, answerButtonStyle, questionLayout, manualTimer, displayLanguage, closingSlide]);
 
   useEffect(() => {
     return () => {
@@ -484,6 +499,23 @@ function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>שפת מסך המנחה:</span>
+              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                {Object.values(DISPLAY_LANGUAGES).map((l) => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => setDisplayLanguage(l.code)}
+                    title={l.code === 'he' ? '' : `כל שדה בשאלה יוקלד גם בעברית וגם ב${l.label}. במסך המנחה יוצג ה${l.label}; בטלפון של השחקנים תמיד יוצג עברית.`}
+                    style={toggleBtnStyle(displayLanguage === l.code)}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>כפתורי תשובה בפלאפון:</span>
               <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <button type="button" onClick={() => setAnswerButtonStyle('text')} style={toggleBtnStyle(answerButtonStyle === 'text')}>טקסט מלא</button>
@@ -568,21 +600,44 @@ function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
   );
 }
 
+// Shared header bar for both admin pages: a title (with breadcrumb underneath, optional) on the
+// right and page actions on the left.
+function HeaderBar({ title, breadcrumb, left }) {
+  return (
+    <div style={{
+      width: '100%', background: '#1a1531', border: '1px solid #342e5b', borderRadius: 16,
+      padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      flexWrap: 'wrap', gap: 16,
+    }}>
+      <div style={{ textAlign: 'right' }}>
+        <div className="title" style={{ fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+          {title} <SettingsIcon size={20} />
+        </div>
+        {breadcrumb && <div className="dim" style={{ fontSize: 13, marginTop: 4 }}>{breadcrumb}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>{left}</div>
+    </div>
+  );
+}
+
 // Question/slide builder for an existing quiz. Settings (name, timing, layout, closing slide)
 // live in QuizSettingsModal — this page only ever touches the `questions` field.
-function QuestionsBuilder({ quiz, onDone, onBackToList }) {
+function QuestionsBuilder({ quiz, onDone, onEditSettings }) {
   const navigate = useNavigate();
   const quizId = quiz.id;
+  const translationLang = quiz.displayLanguage && quiz.displayLanguage !== 'he' ? quiz.displayLanguage : null;
   const [questions, setQuestions] = useState(() =>
     quiz.questions?.length
       ? quiz.questions.map((q) => ({
           ...q, id: generateId(), imageURL: q.imageURL || '', answerImageURL: q.answerImageURL || '',
-          answerExplanation: q.answerExplanation || '', saved: true, uploading: false, uploadingAnswer: false,
+          answerExplanation: q.answerExplanation || '', textTranslated: q.textTranslated || '',
+          optionsTranslated: q.optionsTranslated || ['', '', '', ''], answerExplanationTranslated: q.answerExplanationTranslated || '',
+          saved: true, uploading: false, uploadingAnswer: false,
         }))
       : [emptyQuestion(quiz.defaultTimeLimit || 25)]
   );
   const [previewIndex, setPreviewIndex] = useState(null);
-  const [launching, setLaunching] = useState(false);
+  const [phonePreviewIndex, setPhonePreviewIndex] = useState(null);
   const [autosaved, setAutosaved] = useState(false);
 
   function updateQuestion(idx, updated) {
@@ -664,65 +719,67 @@ function QuestionsBuilder({ quiz, onDone, onBackToList }) {
     onDone();
   }
 
-  async function handleLaunch() {
-    setLaunching(true);
-    try {
-      let pin = quiz.joinCode;
-      if (!pin) {
-        pin = await generateUniqueSessionCode();
-        await update(ref(db, `quizzes/${quizId}`), { joinCode: pin });
-      }
-      await set(ref(db, `sessions/${pin}`), {
-        quizId,
-        quiz: {
-          title: quiz.title, questions: questions.filter((q) => q.saved).map(cleanQuestion),
-          coverImageURL: quiz.coverImageURL || null, answerButtonStyle: quiz.answerButtonStyle || 'text',
-          questionLayout: quiz.questionLayout || 'boxed', manualTimer: !!quiz.manualTimer,
-          closingSlide: quiz.closingSlide || null,
-        },
-        status: 'lobby',
-        currentIndex: -1,
-        questionStartedAt: null,
-        players: {},
-        answers: {},
-        createdAt: Date.now(),
-      });
-      localStorage.setItem('quiz_presenter_pin', pin);
-      sessionStorage.setItem('quiz_admin_ok', '1');
-      navigate('/present');
-    } finally {
-      setLaunching(false);
-    }
+  // Passed as QuizCardBody's onLaunch — pin is already resolved there; this launches with the
+  // live (possibly not-yet-autosaved) question edits rather than the quiz prop's snapshot.
+  async function handleLaunch(pin) {
+    await set(ref(db, `sessions/${pin}`), {
+      quizId,
+      quiz: {
+        title: quiz.title, questions: questions.filter((q) => q.saved).map(cleanQuestion),
+        coverImageURL: quiz.coverImageURL || null, answerButtonStyle: quiz.answerButtonStyle || 'text',
+        questionLayout: quiz.questionLayout || 'boxed', manualTimer: !!quiz.manualTimer,
+        displayLanguage: quiz.displayLanguage || 'he', closingSlide: quiz.closingSlide || null,
+      },
+      status: 'lobby',
+      currentIndex: -1,
+      questionStartedAt: null,
+      players: {},
+      answers: {},
+      createdAt: Date.now(),
+    });
+    localStorage.setItem('quiz_presenter_pin', pin);
+    sessionStorage.setItem('quiz_admin_ok', '1');
+    navigate('/present');
   }
+
+  // Reflects live (not-yet-autosaved) question edits, so the card's saved-question count and
+  // its preview/launch buttons stay accurate while you're actively editing below.
+  const liveQuiz = { ...quiz, questions: questions.filter((q) => q.saved).map(cleanQuestion) };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 1000 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ fontSize: 14 }}>
-          <span className="dim">ניהול חידונים</span>
-          <span className="dim"> / </span>
-          <span className="dim" style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={onBackToList}>החידונים שלי</span>
-          <span className="dim"> / </span>
-          <span style={{ color: '#b288ff', fontWeight: 700 }}>{quiz.title}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-secondary" disabled={!savedCount} onClick={() => setPreviewIndex(0)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EyeIcon size={19} /> תצוגה מקדימה</button>
-          <button type="button" className="btn" disabled={!savedCount || launching} onClick={handleLaunch} style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {launching ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
-          </button>
-        </div>
-      </div>
+      <HeaderBar
+        title="עריכת שאלון"
+        breadcrumb={(
+          <>
+            <span>ניהול חידונים</span>
+            <span> / </span>
+            <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={onDone}>החידונים שלי</span>
+            <span> / </span>
+            <span>{quiz.title}</span>
+          </>
+        )}
+        left={(
+          <>
+            <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addSlide} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>הוסף סלייד חדש</span>
+              <ImageIcon size={20} />
+            </button>
+            <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>הוסף שאלה חדשה</span>
+              <PlusIcon size={22} />
+            </button>
+          </>
+        )}
+      />
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addSlide} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>הוסף סלייד חדש</span>
-          <ImageIcon size={20} />
-        </button>
-        <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>הוסף שאלה חדשה</span>
-          <PlusIcon size={22} />
-        </button>
-      </div>
+      <QuizCardBody
+        quiz={liveQuiz}
+        onEditSettings={onEditSettings}
+        onPreview={() => setPreviewIndex(0)}
+        onPhonePreview={() => setPhonePreviewIndex(0)}
+        onLaunch={handleLaunch}
+      />
 
       {questions.map((q, idx) => {
         const Editor = q.type === 'slide' ? SlideEditor : QuestionEditor;
@@ -742,6 +799,7 @@ function QuestionsBuilder({ quiz, onDone, onBackToList }) {
             onMoveUp={() => moveQuestion(idx, -1)}
             onMoveDown={() => moveQuestion(idx, 1)}
             coverImageURL={quiz.coverImageURL}
+            translationLang={translationLang}
           />
         );
       })}
@@ -768,6 +826,18 @@ function QuestionsBuilder({ quiz, onDone, onBackToList }) {
           coverImageURL={quiz.coverImageURL}
           questionLayout={quiz.questionLayout}
           manualTimer={quiz.manualTimer}
+          displayLanguage={quiz.displayLanguage}
+        />
+      )}
+
+      {phonePreviewIndex !== null && (
+        <PhonePreviewModal
+          questions={questions}
+          startIndex={phonePreviewIndex}
+          quizTitle={quiz.title}
+          coverImageURL={quiz.coverImageURL}
+          answerButtonStyle={quiz.answerButtonStyle}
+          onClose={() => setPhonePreviewIndex(null)}
         />
       )}
     </div>
@@ -775,7 +845,10 @@ function QuestionsBuilder({ quiz, onDone, onBackToList }) {
 }
 
 // One quiz row in the list: thumbnail, question count, its permanent join link/QR, and actions.
-function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, onEditSettings, onPreview }) {
+// The quiz identity card: thumbnail, name, settings summary, action buttons, and the permanent
+// join link/QR. Shared by the quiz list (with move arrows and an "add questions" button) and the
+// top of the question builder (without either — you're already there).
+function QuizCardBody({ quiz, onEditQuestions, onEditSettings, onPreview, onPhonePreview, onLaunch, onMoveUp, onMoveDown, moveUpDisabled, moveDownDisabled }) {
   const navigate = useNavigate();
   const [launching, setLaunching] = useState(false);
   const [joinCode, setJoinCode] = useState(quiz.joinCode || null);
@@ -785,7 +858,7 @@ function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, o
     setJoinCode(quiz.joinCode || null);
   }, [quiz.joinCode]);
 
-  // Every quiz gets a permanent join code/link/QR as soon as it appears in the list, so it can
+  // Every quiz gets a permanent join code/link/QR as soon as it appears here, so it can
   // be shared before the game is even launched, and stays valid across relaunches.
   useEffect(() => {
     if (joinCode) return;
@@ -829,12 +902,19 @@ function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, o
         setJoinCode(pin);
         await update(ref(db, `quizzes/${quiz.id}`), { joinCode: pin });
       }
+      if (onLaunch) {
+        // The question builder passes this so a launch uses its live (possibly not-yet-autosaved)
+        // question edits, rather than the quiz snapshot this card was handed.
+        await onLaunch(pin);
+        return;
+      }
       await set(ref(db, `sessions/${pin}`), {
         quizId: quiz.id,
         quiz: {
           title: quiz.title, questions: quiz.questions || [], coverImageURL: quiz.coverImageURL || null,
           answerButtonStyle: quiz.answerButtonStyle || 'text', questionLayout: quiz.questionLayout || 'boxed',
-          manualTimer: !!quiz.manualTimer, closingSlide: quiz.closingSlide || null,
+          manualTimer: !!quiz.manualTimer, displayLanguage: quiz.displayLanguage || 'he',
+          closingSlide: quiz.closingSlide || null,
         },
         status: 'lobby',
         currentIndex: -1,
@@ -856,16 +936,12 @@ function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, o
     quiz.manualTimer ? 'ללא טיימר' : 'עם טיימר',
     quiz.questionLayout === 'full' ? 'רקע מלא' : 'תצוגה רגילה',
     `בפלאפון: ${quiz.answerButtonStyle === 'shape' ? 'צורה וצבע בלבד' : 'טקסט מלא'}`,
+    `שפת מסך: ${displayLanguageLabel(quiz.displayLanguage)}`,
   ].join(' | ');
 
   return (
     <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 16 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
-          <button type="button" disabled={index === 0} onClick={onMoveUp} title="הזז למעלה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: index === 0 ? 0.35 : 1 }}><ChevronUpCircleIcon size={24} /></button>
-          <button type="button" disabled={index === total - 1} onClick={onMoveDown} title="הזז למטה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: index === total - 1 ? 0.35 : 1 }}><ChevronDownCircleIcon size={24} /></button>
-        </div>
-
         <div style={{ width: 130, flexShrink: 0, position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1280 / 850', background: 'var(--surface-strong)' }}>
           {quiz.coverImageURL ? (
             <img src={quiz.coverImageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -887,11 +963,20 @@ function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, o
           <div style={{ fontWeight: 800, fontSize: 22 }}>{quiz.title}</div>
           <div className="dim" style={{ fontSize: 13, fontWeight: 600 }}>{infoLine}</div>
         </div>
+
+        {onMoveUp && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
+            <button type="button" disabled={moveUpDisabled} onClick={onMoveUp} title="הזז למעלה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: moveUpDisabled ? 0.35 : 1 }}><ChevronUpCircleIcon size={24} /></button>
+            <button type="button" disabled={moveDownDisabled} onClick={onMoveDown} title="הזז למטה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: moveDownDisabled ? 0.35 : 1 }}><ChevronDownCircleIcon size={24} /></button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-secondary" onClick={onEditSettings} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SettingsIcon size={18} /> עריכת הגדרות</button>
-        <button type="button" className="btn btn-secondary" onClick={onEditQuestions} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PlusIcon size={18} /> הוספת שאלות</button>
+        {onEditQuestions && (
+          <button type="button" className="btn btn-secondary" onClick={onEditQuestions} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EditIcon size={18} /> עריכת שאלות</button>
+        )}
         <button
           type="button"
           className="btn btn-secondary"
@@ -900,6 +985,15 @@ function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, o
           style={{ display: 'flex', alignItems: 'center', gap: 6 }}
         >
           <EyeIcon size={19} /> תצוגה מקדימה
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!quiz.questions?.length}
+          onClick={onPhonePreview}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          📱 תצוגה בנייד
         </button>
         <button
           type="button"
@@ -935,8 +1029,25 @@ function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, o
   );
 }
 
+function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, onEditSettings, onPreview, onPhonePreview }) {
+  return (
+    <QuizCardBody
+      quiz={quiz}
+      onEditQuestions={onEditQuestions}
+      onEditSettings={onEditSettings}
+      onPreview={onPreview}
+      onPhonePreview={onPhonePreview}
+      onMoveUp={onMoveUp}
+      onMoveDown={onMoveDown}
+      moveUpDisabled={index === 0}
+      moveDownDisabled={index === total - 1}
+    />
+  );
+}
+
 function QuizList({ quizzes, onEditQuestions, onEditSettings, onAddNew }) {
   const [previewQuiz, setPreviewQuiz] = useState(null);
+  const [phonePreviewQuiz, setPhonePreviewQuiz] = useState(null);
 
   async function handleSaveQuestion(idx, updated) {
     const cleaned = {
@@ -963,17 +1074,18 @@ function QuizList({ quizzes, onEditQuestions, onEditSettings, onAddNew }) {
 
   return (
     <div style={{ width: '100%', maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-        <div style={{ fontSize: 14 }}>
-          <span className="dim">ניהול חידונים</span>
-          <span className="dim"> / </span>
-          <span style={{ color: '#b288ff', fontWeight: 700 }}>החידונים שלי</span>
-        </div>
-        <button type="button" className="btn btn-secondary" onClick={onAddNew} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>הוסף חידון חדש</span>
-          <PlusIcon size={22} />
-        </button>
-      </div>
+      <HeaderBar
+        title="ניהול חידונים"
+        left={(
+          <>
+            <Link to="/" className="dim" style={{ textDecoration: 'none', fontSize: 14 }}>חזרה</Link>
+            <button type="button" className="btn btn-secondary" onClick={onAddNew} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>הוסף חידון חדש</span>
+              <PlusIcon size={22} />
+            </button>
+          </>
+        )}
+      />
 
       {!quizzes.length ? (
         <div className="dim">עדיין אין חידונים שמורים.</div>
@@ -990,6 +1102,7 @@ function QuizList({ quizzes, onEditQuestions, onEditSettings, onAddNew }) {
               onEditQuestions={() => onEditQuestions(q)}
               onEditSettings={() => onEditSettings(q)}
               onPreview={() => setPreviewQuiz(q)}
+              onPhonePreview={() => setPhonePreviewQuiz(q)}
             />
           ))}
         </div>
@@ -1006,6 +1119,18 @@ function QuizList({ quizzes, onEditQuestions, onEditSettings, onAddNew }) {
           coverImageURL={previewQuiz.coverImageURL}
           questionLayout={previewQuiz.questionLayout}
           manualTimer={previewQuiz.manualTimer}
+          displayLanguage={previewQuiz.displayLanguage}
+        />
+      )}
+
+      {phonePreviewQuiz && (
+        <PhonePreviewModal
+          questions={phonePreviewQuiz.questions}
+          startIndex={0}
+          quizTitle={phonePreviewQuiz.title}
+          coverImageURL={phonePreviewQuiz.coverImageURL}
+          answerButtonStyle={phonePreviewQuiz.answerButtonStyle}
+          onClose={() => setPhonePreviewQuiz(null)}
         />
       )}
     </div>
@@ -1044,12 +1169,6 @@ function AdminInner() {
 
   return (
     <div className="screen">
-      <div style={{ width: '100%', maxWidth: 1000, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Link to="/" className="dim" style={{ textDecoration: 'none' }}>← חזרה</Link>
-        <div className="title" style={{ fontSize: 26 }}>⚙️ ניהול חידונים</div>
-        <div style={{ width: 60 }} />
-      </div>
-
       {mode === 'list' ? (
         <QuizList
           quizzes={quizzes}
@@ -1058,7 +1177,7 @@ function AdminInner() {
           onAddNew={() => setSettingsTarget('new')}
         />
       ) : (
-        <QuestionsBuilder key={editingQuiz.id} quiz={editingQuiz} onDone={goToList} onBackToList={goToList} />
+        <QuestionsBuilder key={editingQuiz.id} quiz={editingQuiz} onDone={goToList} onEditSettings={() => setSettingsTarget(editingQuiz)} />
       )}
 
       {settingsTarget && (
