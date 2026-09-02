@@ -121,7 +121,7 @@ function RemoteControls({ pin, session, onExit }) {
   const secondLang = session.quiz.displayLanguage && session.quiz.displayLanguage !== 'he' ? session.quiz.displayLanguage : null;
   const [readLang, setReadLang] = useState('he');
   const readTranslated = readLang !== 'he' && secondLang;
-  const displayQ = q && readTranslated
+  const displayQ = q && readTranslated && !isSlide
     ? {
         text: q.textTranslated || q.text, options: q.options.map((o, i) => q.optionsTranslated?.[i] || o),
         answerExplanation: q.answerExplanationTranslated || q.answerExplanation,

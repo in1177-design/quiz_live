@@ -42,7 +42,7 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
   const fullBackground = !isSlide && questionLayout === 'full' && hasImage;
   const translationLang = displayLanguage && displayLanguage !== 'he' ? displayLanguage : null;
   const ltr = !!translationLang;
-  const displayQ = q && ltr
+  const displayQ = q && ltr && !isSlide
     ? {
         ...q,
         text: q.textTranslated || q.text,
