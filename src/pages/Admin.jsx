@@ -837,6 +837,7 @@ function QuestionsBuilder({ quiz, onDone, onEditSettings }) {
           quizTitle={quiz.title}
           coverImageURL={quiz.coverImageURL}
           answerButtonStyle={quiz.answerButtonStyle}
+          displayLanguage={quiz.displayLanguage}
           onClose={() => setPhonePreviewIndex(null)}
         />
       )}
@@ -1130,6 +1131,7 @@ function QuizList({ quizzes, onEditQuestions, onEditSettings, onAddNew }) {
           quizTitle={phonePreviewQuiz.title}
           coverImageURL={phonePreviewQuiz.coverImageURL}
           answerButtonStyle={phonePreviewQuiz.answerButtonStyle}
+          displayLanguage={phonePreviewQuiz.displayLanguage}
           onClose={() => setPhonePreviewQuiz(null)}
         />
       )}

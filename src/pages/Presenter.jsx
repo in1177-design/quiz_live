@@ -6,7 +6,7 @@ import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import Podium from '../components/Podium.jsx';
 import { QuestionCard, FullBackgroundQuestionCard } from '../components/QuestionDisplay.jsx';
-import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon, ImageIcon } from '../components/icons.jsx';
+import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon, ImageIcon, PlusIcon, MinusIcon } from '../components/icons.jsx';
 import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 
 function QuizSelect({ onStart }) {
@@ -197,7 +197,7 @@ function CornerIconButton({ onClick, title, disabled, style, children }) {
   );
 }
 
-function CornerActionButtons({ onEyeClick, eyeTitle, eyeEnabled, onNext, nextEnabled }) {
+function CornerActionButtons({ onEyeClick, eyeTitle, eyeEnabled, onNext, nextEnabled, onFontUp, onFontDown }) {
   return (
     <>
       <CornerIconButton onClick={onEyeClick} title={eyeTitle} disabled={!eyeEnabled} style={{ position: 'fixed', bottom: 78, right: 20, zIndex: 50 }}>
@@ -206,6 +206,16 @@ function CornerActionButtons({ onEyeClick, eyeTitle, eyeEnabled, onNext, nextEna
       <CornerIconButton onClick={onNext} title="שאלה הבאה" disabled={!nextEnabled} style={{ position: 'fixed', bottom: 20, right: 74, zIndex: 50 }}>
         <RightSquareIcon size={22} />
       </CornerIconButton>
+      {onFontUp && (
+        <CornerIconButton onClick={onFontUp} title="הגדלת פונט" style={{ position: 'fixed', bottom: 20, right: 128, zIndex: 50 }}>
+          <PlusIcon size={22} />
+        </CornerIconButton>
+      )}
+      {onFontDown && (
+        <CornerIconButton onClick={onFontDown} title="הקטנת פונט" style={{ position: 'fixed', bottom: 20, right: 182, zIndex: 50 }}>
+          <MinusIcon size={22} />
+        </CornerIconButton>
+      )}
     </>
   );
 }
@@ -224,6 +234,13 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   // The presenter/projector screen shows the quiz's chosen display language when set; players'
   // phones always show the original Hebrew, regardless of this setting (see Player.jsx).
   const ltr = !!session.quiz.displayLanguage && session.quiz.displayLanguage !== 'he';
+  // Live font-size control (+/- buttons in the corner) — lives on the session itself, not the
+  // quiz, so it can be nudged on the fly during the game and stays put across a page reload.
+  const fontScale = session.fontScale ?? 1;
+  function bumpFont(delta) {
+    const next = Math.round(Math.min(2, Math.max(0.7, fontScale + delta)) * 100) / 100;
+    update(ref(db, `sessions/${pin}`), { fontScale: next });
+  }
   const displayQ = ltr
     ? {
         ...q,
@@ -260,8 +277,8 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   if (fullBackground) {
     return (
       <>
-        <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} ltr={ltr} />
-        <CornerActionButtons onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" eyeEnabled={!revealed} onNext={onNext} nextEnabled={revealed} />
+        <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} ltr={ltr} fontScale={fontScale} />
+        <CornerActionButtons onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" eyeEnabled={!revealed} onNext={onNext} nextEnabled={revealed} onFontUp={() => bumpFont(0.1)} onFontDown={() => bumpFont(-0.1)} />
       </>
     );
   }
@@ -277,6 +294,7 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
         headerLabel={headerLabel}
         manualTimer={manualTimer}
         ltr={ltr}
+        fontScale={fontScale}
       />
       <CornerActionButtons
         onEyeClick={skipToAnswers}
@@ -284,6 +302,8 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
         eyeEnabled={!revealed}
         onNext={onNext}
         nextEnabled={revealed}
+        onFontUp={() => bumpFont(0.1)}
+        onFontDown={() => bumpFont(-0.1)}
       />
     </div>
   );

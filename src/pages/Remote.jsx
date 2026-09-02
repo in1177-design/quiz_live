@@ -5,7 +5,7 @@ import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 import { DISPLAY_LANGUAGES } from '../utils/languages.js';
-import { PauseIcon, RefreshIcon } from '../components/icons.jsx';
+import { PauseIcon, RefreshIcon, PlusIcon, MinusIcon } from '../components/icons.jsx';
 
 function presentUrl(pin) {
   return `${window.location.origin}${window.location.pathname}#/present?pin=${pin}`;
@@ -329,6 +329,14 @@ function RemoteControls({ pin, session, onExit }) {
     });
   }
 
+  // Live font-size control — mirrors the +/- buttons on the presenter screen itself, since both
+  // just nudge the same session.fontScale field.
+  function bumpFont(delta) {
+    const current = session.fontScale ?? 1;
+    const next = Math.round(Math.min(2, Math.max(0.7, current + delta)) * 100) / 100;
+    update(ref(db, `sessions/${pin}`), { fontScale: next });
+  }
+
   async function copy(kind, url) {
     try {
       await navigator.clipboard.writeText(url);
@@ -385,6 +393,12 @@ function RemoteControls({ pin, session, onExit }) {
         </button>
         <button type="button" onClick={pauseGame} style={iconOnlyBtnStyle()} title="עצור" aria-label="עצור">
           <PauseIcon size={20} />
+        </button>
+        <button type="button" onClick={() => bumpFont(0.1)} style={iconOnlyBtnStyle()} title="הגדלת פונט במסך" aria-label="הגדלת פונט במסך">
+          <PlusIcon size={20} />
+        </button>
+        <button type="button" onClick={() => bumpFont(-0.1)} style={iconOnlyBtnStyle()} title="הקטנת פונט במסך" aria-label="הקטנת פונט במסך">
+          <MinusIcon size={20} />
         </button>
       </div>
 

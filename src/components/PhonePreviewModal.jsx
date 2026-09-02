@@ -4,8 +4,10 @@ import { LeftSquareIcon, RightSquareIcon, CloseIcon, ImageIcon } from './icons.j
 const SHAPES = ['▲', '◆', '●', '■'];
 
 // Mimics the player's phone screen for a question/slide — always in Hebrew, regardless of the
-// quiz's display language (players' phones never show the translated text).
-function PhoneQuestionView({ q, answerButtonStyle, coverImageURL }) {
+// quiz's display language (players' phones never show the translated text). The answer grid's
+// left/right arrangement does mirror for an LTR display language, though, to match the mirrored
+// layout shown on the presenter screen (see AnswerGrid in QuestionDisplay.jsx).
+function PhoneQuestionView({ q, answerButtonStyle, coverImageURL, ltr }) {
   const shapeStyle = answerButtonStyle === 'shape';
   const img = q.imageURL || coverImageURL;
 
@@ -19,7 +21,7 @@ function PhoneQuestionView({ q, answerButtonStyle, coverImageURL }) {
 
       {img && <img src={img} alt="" style={{ width: '100%', borderRadius: 14, display: 'block', marginBottom: 16, maxHeight: 150, objectFit: 'cover' }} />}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', direction: ltr ? 'ltr' : 'rtl' }}>
         {q.options.map((opt, i) => {
           if (shapeStyle) {
             return (
@@ -79,10 +81,11 @@ function iconBtnStyle(disabled) {
   };
 }
 
-export default function PhonePreviewModal({ questions, startIndex = 0, onClose, quizTitle, coverImageURL, answerButtonStyle }) {
+export default function PhonePreviewModal({ questions, startIndex = 0, onClose, quizTitle, coverImageURL, answerButtonStyle, displayLanguage }) {
   const [index, setIndex] = useState(startIndex);
   const q = questions[index];
   const isSlide = q?.type === 'slide';
+  const ltr = !!displayLanguage && displayLanguage !== 'he';
 
   function go(delta) {
     setIndex((i) => Math.max(0, Math.min(questions.length - 1, i + delta)));
@@ -119,7 +122,7 @@ export default function PhonePreviewModal({ questions, startIndex = 0, onClose, 
       <PhoneFrame>
         {isSlide
           ? <PhoneSlideView item={q} coverImageURL={coverImageURL} />
-          : <PhoneQuestionView q={q} answerButtonStyle={answerButtonStyle} coverImageURL={coverImageURL} />}
+          : <PhoneQuestionView q={q} answerButtonStyle={answerButtonStyle} coverImageURL={coverImageURL} ltr={ltr} />}
       </PhoneFrame>
     </div>
   );

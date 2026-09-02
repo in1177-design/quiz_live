@@ -126,6 +126,9 @@ function QuestionButtons({ pin, identity, session }) {
   const q = session.quiz.questions[currentIndex];
   const shapeStyle = session.quiz.answerButtonStyle === 'shape';
   const manualTimer = !!session.quiz.manualTimer;
+  // The tile grid's left/right order mirrors for an LTR display language, so the layout matches
+  // the presenter screen (which also mirrors) — the text itself stays Hebrew either way.
+  const ltr = !!session.quiz.displayLanguage && session.quiz.displayLanguage !== 'he';
   const [secondsLeft, setSecondsLeft] = useState(q.timeLimit);
   const myAnswer = session.answers?.[currentIndex]?.[identity.playerId];
 
@@ -175,7 +178,7 @@ function QuestionButtons({ pin, identity, session }) {
         <img src={q.imageURL || session.quiz.coverImageURL} alt="" style={{ width: '100%', borderRadius: 16, display: 'block', marginBottom: 20, maxHeight: '32vh', objectFit: 'cover' }} />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%', direction: ltr ? 'ltr' : 'rtl' }}>
         {q.options.map((opt, i) => {
           if (shapeStyle) {
             return (
