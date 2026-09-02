@@ -10,6 +10,102 @@ function presentUrl(pin) {
   return `${window.location.origin}${window.location.pathname}#/present?pin=${pin}`;
 }
 
+// Reuses (or mints) the quiz's permanent join code and opens a fresh session for it in the
+// lobby. Shared by the initial quiz picker and by switching quizzes mid-remote-session.
+async function startQuizSession(quiz) {
+  let pin = quiz.joinCode;
+  if (!pin) {
+    pin = await generateUniqueSessionCode();
+    await update(ref(db, `quizzes/${quiz.id}`), { joinCode: pin });
+  }
+  await set(ref(db, `sessions/${pin}`), {
+    quizId: quiz.id,
+    quiz: {
+      title: quiz.title, questions: quiz.questions || [], coverImageURL: quiz.coverImageURL || null,
+      answerButtonStyle: quiz.answerButtonStyle || 'text', questionLayout: quiz.questionLayout || 'boxed',
+      manualTimer: !!quiz.manualTimer, displayLanguage: quiz.displayLanguage || 'he',
+      closingSlide: quiz.closingSlide || null,
+    },
+    status: 'lobby',
+    currentIndex: -1,
+    questionStartedAt: null,
+    players: {},
+    answers: {},
+    createdAt: Date.now(),
+  });
+  return pin;
+}
+
+// Small dropdown attached to the quiz title in the header — lets you jump straight to a
+// different quiz (launching it immediately) without leaving the active remote screen.
+function QuizTitleSwitcher({ title, onStart }) {
+  const [quizzes, setQuizzes] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    return onValue(ref(db, 'quizzes'), (snap) => {
+      const val = snap.val() || {};
+      setQuizzes(Object.entries(val).map(([id, v]) => ({ id, ...v })));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e) {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  async function pick(quiz) {
+    setOpen(false);
+    setLaunching(true);
+    try {
+      const pin = await startQuizSession(quiz);
+      onStart(pin);
+    } finally {
+      setLaunching(false);
+    }
+  }
+
+  return (
+    <div ref={boxRef} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={launching}
+        style={{
+          background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, font: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        <span className="dim" style={{ fontWeight: 700, fontSize: 16 }}>{launching ? 'מפעיל...' : title}</span>
+        <span className="dim" style={{ fontSize: 11, transition: 'transform 0.15s', transform: open ? 'rotate(180deg)' : 'none' }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, minWidth: 220, maxHeight: 280, overflowY: 'auto',
+          background: '#211c44', border: '1px solid #3e376e', borderRadius: 12, boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+        }}>
+          {quizzes.map((q) => (
+            <div
+              key={q.id}
+              onClick={() => pick(q)}
+              style={{ padding: '12px 16px', cursor: 'pointer', textAlign: 'right' }}
+            >
+              <div style={{ fontWeight: 700 }}>{q.title}</div>
+              <div className="dim" style={{ fontSize: 12 }}>{q.questions?.length || 0} שאלות</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function QuizPicker({ onStart }) {
   const [quizzes, setQuizzes] = useState([]);
   const [selected, setSelected] = useState('');
@@ -45,26 +141,7 @@ function QuizPicker({ onStart }) {
     if (!quiz) return;
     setStarting(true);
     try {
-      let pin = quiz.joinCode;
-      if (!pin) {
-        pin = await generateUniqueSessionCode();
-        await update(ref(db, `quizzes/${quiz.id}`), { joinCode: pin });
-      }
-      await set(ref(db, `sessions/${pin}`), {
-        quizId: quiz.id,
-        quiz: {
-          title: quiz.title, questions: quiz.questions || [], coverImageURL: quiz.coverImageURL || null,
-          answerButtonStyle: quiz.answerButtonStyle || 'text', questionLayout: quiz.questionLayout || 'boxed',
-          manualTimer: !!quiz.manualTimer, displayLanguage: quiz.displayLanguage || 'he',
-          closingSlide: quiz.closingSlide || null,
-        },
-        status: 'lobby',
-        currentIndex: -1,
-        questionStartedAt: null,
-        players: {},
-        answers: {},
-        createdAt: Date.now(),
-      });
+      const pin = await startQuizSession(quiz);
       onStart(pin);
     } finally {
       setStarting(false);
@@ -271,9 +348,6 @@ function RemoteControls({ pin, session, onExit }) {
         <button type="button" style={bigButtonStyle('linear-gradient(135deg, var(--accent), #22d3ee)')} onClick={resumeGame}>
           ▶ חזרה לחידון
         </button>
-        <span onClick={onExit} style={{ fontSize: 12, color: 'var(--dim)', cursor: 'pointer', textDecoration: 'underline', textAlign: 'center' }}>
-          🔁 בחירת חידון אחר
-        </span>
       </div>
     );
   }
@@ -281,9 +355,6 @@ function RemoteControls({ pin, session, onExit }) {
   return (
     <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <span onClick={onExit} style={{ fontSize: 12, color: 'var(--dim)', cursor: 'pointer', textDecoration: 'underline' }}>
-          🔁 בחירת חידון אחר
-        </span>
         <span
           onClick={() => copy('present', presentUrl(pin))}
           style={{ fontSize: 12, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}
@@ -440,7 +511,7 @@ function RemoteInner() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontWeight: 800, fontSize: 18 }}>🎮 שלט מנחה</span>
-          {session?.quiz?.title && <span className="dim" style={{ fontWeight: 700, fontSize: 16 }}>{session.quiz.title}</span>}
+          {session?.quiz?.title && <QuizTitleSwitcher title={session.quiz.title} onStart={setPin} />}
         </div>
         <Link to="/" className="dim" style={{ textDecoration: 'none', fontSize: 14 }}>חזרה →</Link>
       </div>
