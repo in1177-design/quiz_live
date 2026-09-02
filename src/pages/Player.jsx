@@ -125,23 +125,25 @@ function QuestionButtons({ pin, identity, session }) {
   const currentIndex = session.currentIndex;
   const q = session.quiz.questions[currentIndex];
   const shapeStyle = session.quiz.answerButtonStyle === 'shape';
+  const manualTimer = !!session.quiz.manualTimer;
   const [secondsLeft, setSecondsLeft] = useState(q.timeLimit);
   const myAnswer = session.answers?.[currentIndex]?.[identity.playerId];
 
   useEffect(() => {
+    if (manualTimer) return;
     const tick = () => setSecondsLeft(Math.max(0, q.timeLimit - (Date.now() - session.questionStartedAt) / 1000));
     tick();
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, [currentIndex, session.questionStartedAt, q.timeLimit]);
+  }, [currentIndex, session.questionStartedAt, q.timeLimit, manualTimer]);
 
   async function answer(optionIndex) {
-    if (myAnswer || secondsLeft <= 0) return;
+    if (myAnswer || (!manualTimer && secondsLeft <= 0)) return;
     const elapsed = Date.now() - session.questionStartedAt;
     const correct = optionIndex === q.correctIndex;
     const me = session.players[identity.playerId];
     const streak = correct ? (me.streak || 0) + 1 : 0;
-    const points = calcPoints(correct, elapsed, q.timeLimit, me.streak || 0);
+    const points = calcPoints(correct, elapsed, manualTimer ? Infinity : q.timeLimit, me.streak || 0);
     await update(ref(db, `sessions/${pin}`), {
       [`answers/${currentIndex}/${identity.playerId}`]: { optionIndex, answeredAt: Date.now(), correct, points },
       [`players/${identity.playerId}/score`]: (me.score || 0) + points,
@@ -161,9 +163,11 @@ function QuestionButtons({ pin, identity, session }) {
 
   return (
     <div className="card pop-in" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
-      </div>
+      {!manualTimer && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
+        </div>
+      )}
 
       <div style={{ fontWeight: 700, fontSize: 18, textAlign: 'center', marginBottom: 16 }}>{q.text}</div>
 
@@ -178,7 +182,7 @@ function QuestionButtons({ pin, identity, session }) {
               <button
                 key={i}
                 onClick={() => answer(i)}
-                disabled={secondsLeft <= 0}
+                disabled={!manualTimer && secondsLeft <= 0}
                 style={{
                   aspectRatio: '1', border: 'none', borderRadius: 20, background: `var(--opt-${i})`,
                   fontSize: 48, color: 'white', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
@@ -199,7 +203,7 @@ function QuestionButtons({ pin, identity, session }) {
             <button
               key={i}
               onClick={() => answer(i)}
-              disabled={secondsLeft <= 0}
+              disabled={!manualTimer && secondsLeft <= 0}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, border: 'none', borderRadius: 16,
                 background: `var(--opt-${i})`, minHeight: 70, padding: '12px 14px', cursor: 'pointer',

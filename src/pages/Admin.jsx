@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ref, onValue, set, update, remove, get } from 'firebase/database';
+import { ref, onValue, set, update, remove } from 'firebase/database';
 import { ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, storage } from '../firebase.js';
@@ -7,10 +7,11 @@ import PasswordGate from '../components/PasswordGate.jsx';
 import PreviewModal from '../components/PreviewModal.jsx';
 import QuestionForm from '../components/QuestionForm.jsx';
 import EditingQuestionCard from '../components/QuestionEditorCard.jsx';
-import { ImageIcon, PlusIcon, EyeIcon, TrashIcon, EditIcon, PlayIcon, CheckIcon, ChevronUpCircleIcon, ChevronDownCircleIcon, SettingsIcon } from '../components/icons.jsx';
+import { ImageIcon, PlusIcon, EyeIcon, TrashIcon, EditIcon, PlayIcon, CheckIcon, ChevronUpCircleIcon, ChevronDownCircleIcon, SettingsIcon, ShareIcon, CloseIcon } from '../components/icons.jsx';
 import ImageUploadField from '../components/ImageUploadField.jsx';
 import { compressImage } from '../utils/compressImage.js';
-import { generateId, generatePin } from '../utils/ids.js';
+import { generateId, generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
+import { QRCodeSVG } from 'qrcode.react';
 
 function useIsMobile(breakpoint = 700) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= breakpoint);
@@ -283,66 +284,37 @@ function cleanQuestion(q) {
   };
 }
 
-function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
-  const navigate = useNavigate();
-  const [quizId] = useState(() => existingQuiz?.id || generateId());
-  const [createdAt] = useState(() => existingQuiz?.createdAt || Date.now());
-  const [title, setTitle] = useState(existingQuiz?.title || '');
-  const [coverImageURL, setCoverImageURL] = useState(existingQuiz?.coverImageURL || '');
+function toggleBtnStyle(active) {
+  return {
+    border: 'none', padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    background: active ? 'var(--accent)' : 'var(--surface-strong)',
+    color: active ? 'white' : 'var(--dim)',
+  };
+}
+
+// Full settings editor for a quiz (name, cover image, timing, layout options, closing slide).
+// Opens as a modal from the quiz list — either for an existing quiz ("עריכת הגדרות") or for a
+// brand new one ("הוסף חידון חדש"), in which case it creates the quiz document once a title is set.
+function QuizSettingsModal({ quiz, onClose, onGoToQuestions }) {
+  const [quizId] = useState(() => quiz?.id || generateId());
+  const [createdAt] = useState(() => quiz?.createdAt || Date.now());
+  const [title, setTitle] = useState(quiz?.title || '');
+  const [coverImageURL, setCoverImageURL] = useState(quiz?.coverImageURL || '');
   const [uploadingCover, setUploadingCover] = useState(false);
-  const [defaultTimeLimit, setDefaultTimeLimit] = useState(existingQuiz?.defaultTimeLimit || 25);
-  const [answerButtonStyle, setAnswerButtonStyle] = useState(existingQuiz?.answerButtonStyle || 'text');
-  const [closingSlide, setClosingSlide] = useState(existingQuiz?.closingSlide || null);
+  const [defaultTimeLimit, setDefaultTimeLimit] = useState(quiz?.defaultTimeLimit || 25);
+  const [answerButtonStyle, setAnswerButtonStyle] = useState(quiz?.answerButtonStyle || 'text');
+  const [questionLayout, setQuestionLayout] = useState(quiz?.questionLayout || 'boxed');
+  const [manualTimer, setManualTimer] = useState(quiz?.manualTimer || false);
+  const [closingSlide, setClosingSlide] = useState(quiz?.closingSlide || null);
   const [closingSlideDraft, setClosingSlideDraft] = useState(null);
-  const [questions, setQuestions] = useState(() =>
-    existingQuiz?.questions?.length
-      ? existingQuiz.questions.map((q) => ({
-          ...q, id: generateId(), imageURL: q.imageURL || '', answerImageURL: q.answerImageURL || '',
-          answerExplanation: q.answerExplanation || '', saved: true, uploading: false, uploadingAnswer: false,
-        }))
-      : [emptyQuestion(existingQuiz?.defaultTimeLimit || 25)]
-  );
-  const [previewIndex, setPreviewIndex] = useState(null);
-  const [launching, setLaunching] = useState(false);
   const [autosaved, setAutosaved] = useState(false);
-
-  function updateQuestion(idx, updated) {
-    setQuestions((qs) => qs.map((q, i) => (i === idx ? updated : q)));
-  }
-
-  function saveQuestion(idx) {
-    setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, saved: true } : q)));
-  }
-
-  function editQuestion(idx) {
-    setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, saved: false, _snapshot: { ...q } } : q)));
-  }
-
-  function cancelEditQuestion(idx) {
-    setQuestions((qs) => qs.map((q, i) => {
-      if (i !== idx) return q;
-      if (q._snapshot) return { ...q._snapshot, saved: true };
-      return q.type === 'slide' ? emptySlide() : emptyQuestion(defaultTimeLimit);
-    }));
-  }
-
-  function deleteQuestion(idx) {
-    setQuestions((qs) => qs.filter((_, i) => i !== idx));
-  }
-
-  function addQuestion() {
-    setQuestions((qs) => [...qs, emptyQuestion(defaultTimeLimit)]);
-  }
-
-  function addSlide() {
-    setQuestions((qs) => [...qs, emptySlide()]);
-  }
+  const [proceeding, setProceeding] = useState(false);
 
   function startEditClosingSlide() {
     setClosingSlideDraft(closingSlide ? { ...closingSlide, uploading: false } : { imageURL: '', imageSize: 'contained', uploading: false });
   }
 
-  function saveClosingSlide() {
+  function saveClosingSlideDraft() {
     setClosingSlide({ imageURL: closingSlideDraft.imageURL, imageSize: closingSlideDraft.imageSize });
     setClosingSlideDraft(null);
   }
@@ -369,22 +341,6 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
     }
   }
 
-  function handleDefaultTimeLimitChange(value) {
-    const num = Number(value) || 25;
-    setDefaultTimeLimit(num);
-    setQuestions((qs) => qs.map((q) => ({ ...q, timeLimit: num })));
-  }
-
-  function moveQuestion(idx, delta) {
-    setQuestions((qs) => {
-      const target = idx + delta;
-      if (target < 0 || target >= qs.length) return qs;
-      const copy = [...qs];
-      [copy[idx], copy[target]] = [copy[target], copy[idx]];
-      return copy;
-    });
-  }
-
   async function handleCoverImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -404,24 +360,27 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
     }
   }
 
-  const savedCount = questions.filter((q) => q.saved).length;
-  const canAddNext = questions.length > 0 && questions[questions.length - 1].saved;
-  const canSaveQuiz = title.trim() && savedCount > 0 && questions.every((q) => q.saved);
-
   const stateRef = useRef();
-  stateRef.current = { title, coverImageURL, defaultTimeLimit, answerButtonStyle, closingSlide, questions };
+  stateRef.current = { title, coverImageURL, defaultTimeLimit, answerButtonStyle, questionLayout, manualTimer, closingSlide };
 
-  async function persistQuiz(s = stateRef.current) {
-    if (!s.title.trim()) return;
-    await set(ref(db, `quizzes/${quizId}`), {
+  function buildPayload(s) {
+    return {
       title: s.title.trim(),
       createdAt,
       coverImageURL: s.coverImageURL || null,
       defaultTimeLimit: s.defaultTimeLimit,
       answerButtonStyle: s.answerButtonStyle,
+      questionLayout: s.questionLayout,
+      manualTimer: !!s.manualTimer,
       closingSlide: s.closingSlide?.imageURL ? { imageURL: s.closingSlide.imageURL, imageSize: s.closingSlide.imageSize === 'full' ? 'full' : 'contained' } : null,
-      questions: s.questions.map(cleanQuestion),
-    });
+    };
+  }
+
+  async function persist(s = stateRef.current) {
+    if (!s.title.trim()) return;
+    // Only the settings fields are touched here — questions and joinCode belong to other
+    // editors (the question builder, the list card), so update() rather than set().
+    await update(ref(db, `quizzes/${quizId}`), buildPayload(s));
     setAutosaved(true);
   }
 
@@ -433,35 +392,294 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
   useEffect(() => {
     if (!title.trim()) return;
     if (JSON.stringify(stateRef.current) === initialSnapshotRef.current) return;
-    const timer = setTimeout(() => { persistQuiz(); }, 800);
+    const timer = setTimeout(() => { persist(); }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, coverImageURL, defaultTimeLimit, answerButtonStyle, closingSlide, questions]);
+  }, [title, coverImageURL, defaultTimeLimit, answerButtonStyle, questionLayout, manualTimer, closingSlide]);
 
   useEffect(() => {
     return () => {
-      if (JSON.stringify(stateRef.current) !== initialSnapshotRef.current) persistQuiz();
+      if (JSON.stringify(stateRef.current) !== initialSnapshotRef.current) persist();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleClose() {
+    if (JSON.stringify(stateRef.current) !== initialSnapshotRef.current) await persist();
+    onClose();
+  }
+
+  async function handleDeleteQuiz() {
+    if (!confirm('למחוק את החידון? הפעולה לא ניתנת לביטול.')) return;
+    await remove(ref(db, `quizzes/${quizId}`));
+    onClose();
+  }
+
+  async function handleGoToQuestions() {
+    if (!title.trim()) return;
+    setProceeding(true);
+    try {
+      await persist();
+      onGoToQuestions({ id: quizId, ...buildPayload(stateRef.current), questions: quiz?.questions || [] });
+    } finally {
+      setProceeding(false);
+    }
+  }
+
+  return (
+    <>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto',
+      }}>
+        <div className="card pop-in" style={{ width: '100%', maxWidth: 640, padding: 28, display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="title" style={{ fontSize: 22 }}>⚙️ הגדרות חידון</div>
+            <button type="button" onClick={handleClose} title="סגירה" style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CloseIcon size={18} /></button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ width: 188, flexShrink: 0 }}>
+              <ImageUploadField id="cover-image" imageURL={coverImageURL} uploading={uploadingCover} onUpload={handleCoverImage} height={125} radius={12} />
+            </div>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <input
+                className="input"
+                style={{ width: '100%', fontSize: 20, fontWeight: 700, textAlign: 'right' }}
+                placeholder="שם החידון"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: manualTimer ? 0.4 : 1, pointerEvents: manualTimer ? 'none' : 'auto' }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>זמן ברירת מחדל לשאלה (שניות):</span>
+              <input
+                type="number"
+                className="input"
+                style={{ width: 80 }}
+                min={5}
+                max={120}
+                value={defaultTimeLimit}
+                onChange={(e) => setDefaultTimeLimit(Number(e.target.value) || 25)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>מגבלת זמן לשאלה:</span>
+              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <button type="button" onClick={() => setManualTimer(false)} style={toggleBtnStyle(!manualTimer)}>עם טיימר</button>
+                <button
+                  type="button"
+                  onClick={() => setManualTimer(true)}
+                  title="אין ספירה לאחור לשאלה. המעבר לתשובה ולשאלה הבאה נשלט ידנית ע״י המנחה בלבד."
+                  style={toggleBtnStyle(manualTimer)}
+                >
+                  ללא הגבלת זמן (ידני)
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>כפתורי תשובה בפלאפון:</span>
+              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <button type="button" onClick={() => setAnswerButtonStyle('text')} style={toggleBtnStyle(answerButtonStyle === 'text')}>טקסט מלא</button>
+                <button type="button" onClick={() => setAnswerButtonStyle('shape')} style={toggleBtnStyle(answerButtonStyle === 'shape')}>צורה וצבע בלבד</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>תצוגת שאלה במסך המנחה:</span>
+              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <button type="button" onClick={() => setQuestionLayout('boxed')} style={toggleBtnStyle(questionLayout === 'boxed')}>רגיל (ממוסגר)</button>
+                <button
+                  type="button"
+                  onClick={() => setQuestionLayout('full')}
+                  title="התמונה תמלא את כל המסך כרקע, והשאלה+תשובות יצופו למטה. רלוונטי רק למסך המנחה/מקרן."
+                  style={toggleBtnStyle(questionLayout === 'full')}
+                >
+                  רקע מלא מסך
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>שקף סיום (אחרי תצוגת הזוכים):</span>
+              {closingSlide?.imageURL ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <img src={closingSlide.imageURL} alt="" style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 8 }} />
+                  <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={startEditClosingSlide}>עריכה</button>
+                  <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={removeClosingSlide}>מחיקה</button>
+                </div>
+              ) : (
+                <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6 }} onClick={startEditClosingSlide}>
+                  <PlusIcon size={16} /> הוספת שקף סיום
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <span className="dim" style={{ fontSize: 13 }}>{autosaved ? '✓ נשמר אוטומטית' : ' '}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={handleClose}>סגירה</button>
+                <button type="button" className="btn" disabled={!title.trim() || proceeding} onClick={handleGoToQuestions} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {proceeding ? 'שומר...' : <>הוספת שאלות ⟶</>}
+                </button>
+              </div>
+              {quiz && (
+                <button
+                  type="button"
+                  onClick={handleDeleteQuiz}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#ef4444', fontSize: 12, textDecoration: 'underline' }}
+                >
+                  מחיקת חידון
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {closingSlideDraft && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 600, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="title" style={{ fontSize: 20, textAlign: 'right' }}>שקף סיום</div>
+            <ImageUploadField id="closing-slide-img" imageURL={closingSlideDraft.imageURL} uploading={closingSlideDraft.uploading} onUpload={handleClosingSlideImage} height={220} radius={16} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>גודל התמונה:</span>
+              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <button type="button" onClick={() => setClosingSlideDraft((d) => ({ ...d, imageSize: 'contained' }))} style={toggleBtnStyle(closingSlideDraft.imageSize !== 'full')}>כמו בשאלה</button>
+                <button type="button" onClick={() => setClosingSlideDraft((d) => ({ ...d, imageSize: 'full' }))} style={toggleBtnStyle(closingSlideDraft.imageSize === 'full')}>מסך מלא</button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn" disabled={!closingSlideDraft.imageURL} onClick={saveClosingSlideDraft} style={{ flex: 1 }}>✓ שמירה</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setClosingSlideDraft(null)}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Question/slide builder for an existing quiz. Settings (name, timing, layout, closing slide)
+// live in QuizSettingsModal — this page only ever touches the `questions` field.
+function QuestionsBuilder({ quiz, onDone, onBackToList }) {
+  const navigate = useNavigate();
+  const quizId = quiz.id;
+  const [questions, setQuestions] = useState(() =>
+    quiz.questions?.length
+      ? quiz.questions.map((q) => ({
+          ...q, id: generateId(), imageURL: q.imageURL || '', answerImageURL: q.answerImageURL || '',
+          answerExplanation: q.answerExplanation || '', saved: true, uploading: false, uploadingAnswer: false,
+        }))
+      : [emptyQuestion(quiz.defaultTimeLimit || 25)]
+  );
+  const [previewIndex, setPreviewIndex] = useState(null);
+  const [launching, setLaunching] = useState(false);
+  const [autosaved, setAutosaved] = useState(false);
+
+  function updateQuestion(idx, updated) {
+    setQuestions((qs) => qs.map((q, i) => (i === idx ? updated : q)));
+  }
+
+  function saveQuestion(idx) {
+    setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, saved: true } : q)));
+  }
+
+  function editQuestion(idx) {
+    setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, saved: false, _snapshot: { ...q } } : q)));
+  }
+
+  function cancelEditQuestion(idx) {
+    setQuestions((qs) => qs.map((q, i) => {
+      if (i !== idx) return q;
+      if (q._snapshot) return { ...q._snapshot, saved: true };
+      return q.type === 'slide' ? emptySlide() : emptyQuestion(quiz.defaultTimeLimit || 25);
+    }));
+  }
+
+  function deleteQuestion(idx) {
+    setQuestions((qs) => qs.filter((_, i) => i !== idx));
+  }
+
+  function addQuestion() {
+    setQuestions((qs) => [...qs, emptyQuestion(quiz.defaultTimeLimit || 25)]);
+  }
+
+  function addSlide() {
+    setQuestions((qs) => [...qs, emptySlide()]);
+  }
+
+  function moveQuestion(idx, delta) {
+    setQuestions((qs) => {
+      const target = idx + delta;
+      if (target < 0 || target >= qs.length) return qs;
+      const copy = [...qs];
+      [copy[idx], copy[target]] = [copy[target], copy[idx]];
+      return copy;
+    });
+  }
+
+  const savedCount = questions.filter((q) => q.saved).length;
+  const canAddNext = questions.length > 0 && questions[questions.length - 1].saved;
+  const canSaveQuiz = savedCount > 0 && questions.every((q) => q.saved);
+
+  const stateRef = useRef();
+  stateRef.current = { questions };
+
+  async function persistQuestions(s = stateRef.current) {
+    // Only the `questions` field is touched here — settings and joinCode belong to other editors.
+    await update(ref(db, `quizzes/${quizId}`), { questions: s.questions.map(cleanQuestion) });
+    setAutosaved(true);
+  }
+
+  const initialSnapshotRef = useRef(null);
+  if (initialSnapshotRef.current === null) {
+    initialSnapshotRef.current = JSON.stringify(stateRef.current);
+  }
+
+  useEffect(() => {
+    if (JSON.stringify(stateRef.current) === initialSnapshotRef.current) return;
+    const timer = setTimeout(() => { persistQuestions(); }, 800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questions]);
+
+  useEffect(() => {
+    return () => {
+      if (JSON.stringify(stateRef.current) !== initialSnapshotRef.current) persistQuestions();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function saveQuiz() {
-    await persistQuiz();
+    await persistQuestions();
     onDone();
   }
 
   async function handleLaunch() {
     setLaunching(true);
     try {
-      let pin = generatePin();
-      for (let i = 0; i < 5; i++) {
-        const snap = await get(ref(db, `sessions/${pin}`));
-        if (!snap.exists()) break;
-        pin = generatePin();
+      let pin = quiz.joinCode;
+      if (!pin) {
+        pin = await generateUniqueSessionCode();
+        await update(ref(db, `quizzes/${quizId}`), { joinCode: pin });
       }
       await set(ref(db, `sessions/${pin}`), {
         quizId,
-        quiz: { title: title.trim(), questions: questions.filter((q) => q.saved).map(cleanQuestion), coverImageURL: coverImageURL || null, answerButtonStyle, closingSlide: closingSlide?.imageURL ? { imageURL: closingSlide.imageURL, imageSize: closingSlide.imageSize === 'full' ? 'full' : 'contained' } : null },
+        quiz: {
+          title: quiz.title, questions: questions.filter((q) => q.saved).map(cleanQuestion),
+          coverImageURL: quiz.coverImageURL || null, answerButtonStyle: quiz.answerButtonStyle || 'text',
+          questionLayout: quiz.questionLayout || 'boxed', manualTimer: !!quiz.manualTimer,
+          closingSlide: quiz.closingSlide || null,
+        },
         status: 'lobby',
         currentIndex: -1,
         questionStartedAt: null,
@@ -479,149 +697,32 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 1000 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontSize: 14 }}>
           <span className="dim">ניהול חידונים</span>
           <span className="dim"> / </span>
           <span className="dim" style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={onBackToList}>החידונים שלי</span>
           <span className="dim"> / </span>
-          <span style={{ color: '#b288ff', fontWeight: 700 }}>{title.trim() || 'חידון חדש'}</span>
+          <span style={{ color: '#b288ff', fontWeight: 700 }}>{quiz.title}</span>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addSlide} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>הוסף סלייד חדש</span>
-            <ImageIcon size={20} />
-          </button>
-          <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>הוסף שאלה חדשה</span>
-            <PlusIcon size={22} />
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary" disabled={!savedCount} onClick={() => setPreviewIndex(0)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EyeIcon size={19} /> תצוגה מקדימה</button>
+          <button type="button" className="btn" disabled={!savedCount || launching} onClick={handleLaunch} style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {launching ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
           </button>
         </div>
       </div>
 
-      <div style={{ padding: 24, borderRadius: 16, border: '1px solid #342e5b', background: '#2c2251' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <SettingsIcon size={18} />
-          <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>עריכת הגדרות חידון</span>
-        </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ width: 188, flexShrink: 0 }}>
-            <ImageUploadField id="cover-image" imageURL={coverImageURL} uploading={uploadingCover} onUpload={handleCoverImage} height={125} radius={12} />
-          </div>
-
-          <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'center' }}>
-            <input
-              className="input"
-              style={{ width: '100%', fontSize: 20, fontWeight: 700, textAlign: 'right' }}
-              placeholder="שם החידון"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <div className="dim" style={{ fontSize: 14, fontWeight: 600, textAlign: 'right' }}>{questions.length} שאלות</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>זמן ברירת מחדל לשאלה (שניות):</span>
-                <input
-                  type="number"
-                  className="input"
-                  style={{ width: 80 }}
-                  min={5}
-                  max={120}
-                  value={defaultTimeLimit}
-                  onChange={(e) => handleDefaultTimeLimitChange(e.target.value)}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>כפתורי תשובה בפלאפון:</span>
-                <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  <button
-                    type="button"
-                    onClick={() => setAnswerButtonStyle('text')}
-                    style={{
-                      border: 'none', padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      background: answerButtonStyle === 'text' ? 'var(--accent)' : 'var(--surface-strong)',
-                      color: answerButtonStyle === 'text' ? 'white' : 'var(--dim)',
-                    }}
-                  >
-                    טקסט מלא
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnswerButtonStyle('shape')}
-                    style={{
-                      border: 'none', padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      background: answerButtonStyle === 'shape' ? 'var(--accent)' : 'var(--surface-strong)',
-                      color: answerButtonStyle === 'shape' ? 'white' : 'var(--dim)',
-                    }}
-                  >
-                    צורה וצבע בלבד
-                  </button>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>שקף סיום (אחרי תצוגת הזוכים):</span>
-                {closingSlide?.imageURL ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <img src={closingSlide.imageURL} alt="" style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 8 }} />
-                    <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={startEditClosingSlide}>עריכה</button>
-                    <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={removeClosingSlide}>מחיקה</button>
-                  </div>
-                ) : (
-                  <button type="button" className="btn btn-secondary" style={{ fontSize: 13, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6 }} onClick={startEditClosingSlide}>
-                    <PlusIcon size={16} /> הוספת שקף סיום
-                  </button>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button type="button" className="btn btn-secondary" disabled={!savedCount} onClick={() => setPreviewIndex(0)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EyeIcon size={19} /> תצוגה מקדימה</button>
-              <button type="button" className="btn" disabled={!savedCount || launching} onClick={handleLaunch} style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                {launching ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
-              </button>
-            </div>
-          </div>
-        </div>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addSlide} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>הוסף סלייד חדש</span>
+          <ImageIcon size={20} />
+        </button>
+        <button type="button" className="btn btn-secondary" disabled={!canAddNext} onClick={addQuestion} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>הוסף שאלה חדשה</span>
+          <PlusIcon size={22} />
+        </button>
       </div>
-
-      {closingSlideDraft && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 600, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="title" style={{ fontSize: 20, textAlign: 'right' }}>שקף סיום</div>
-            <ImageUploadField id="closing-slide-img" imageURL={closingSlideDraft.imageURL} uploading={closingSlideDraft.uploading} onUpload={handleClosingSlideImage} height={220} radius={16} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="dim" style={{ fontSize: 14, fontWeight: 600 }}>גודל התמונה:</span>
-              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <button
-                  type="button"
-                  onClick={() => setClosingSlideDraft((d) => ({ ...d, imageSize: 'contained' }))}
-                  style={{
-                    border: 'none', padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    background: closingSlideDraft.imageSize !== 'full' ? 'var(--accent)' : 'var(--surface-strong)',
-                    color: closingSlideDraft.imageSize !== 'full' ? 'white' : 'var(--dim)',
-                  }}
-                >
-                  כמו בשאלה
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClosingSlideDraft((d) => ({ ...d, imageSize: 'full' }))}
-                  style={{
-                    border: 'none', padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    background: closingSlideDraft.imageSize === 'full' ? 'var(--accent)' : 'var(--surface-strong)',
-                    color: closingSlideDraft.imageSize === 'full' ? 'white' : 'var(--dim)',
-                  }}
-                >
-                  מסך מלא
-                </button>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" className="btn" disabled={!closingSlideDraft.imageURL} onClick={saveClosingSlide} style={{ flex: 1 }}>✓ שמירה</button>
-              <button type="button" className="btn btn-secondary" onClick={() => setClosingSlideDraft(null)}>ביטול</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {questions.map((q, idx) => {
         const Editor = q.type === 'slide' ? SlideEditor : QuestionEditor;
@@ -640,7 +741,7 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
             onPreview={() => setPreviewIndex(idx)}
             onMoveUp={() => moveQuestion(idx, -1)}
             onMoveDown={() => moveQuestion(idx, 1)}
-            coverImageURL={coverImageURL}
+            coverImageURL={quiz.coverImageURL}
           />
         );
       })}
@@ -651,7 +752,7 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" className="btn" disabled={!canSaveQuiz} onClick={saveQuiz} style={{ fontSize: 18 }}>
-          💾 {existingQuiz ? 'סיום עריכה' : 'שמירת חידון'} ({savedCount} שאלות)
+          💾 סיום עריכה ({savedCount} שאלות)
         </button>
         {autosaved && <span className="dim" style={{ fontSize: 13 }}>✓ הכל נשמר אוטומטית</span>}
       </div>
@@ -661,38 +762,80 @@ function QuizBuilder({ onDone, onBackToList, existingQuiz }) {
           questions={questions}
           startIndex={previewIndex}
           quizId={quizId}
-          quizTitle={title.trim() || 'חידון חדש'}
+          quizTitle={quiz.title}
           onSaveQuestion={(idx, updated) => updateQuestion(idx, updated)}
           onClose={() => setPreviewIndex(null)}
-          coverImageURL={coverImageURL}
+          coverImageURL={quiz.coverImageURL}
+          questionLayout={quiz.questionLayout}
+          manualTimer={quiz.manualTimer}
         />
       )}
     </div>
   );
 }
 
-function QuizList({ quizzes, onEdit, onAddNew }) {
-  const [previewQuiz, setPreviewQuiz] = useState(null);
-  const [launching, setLaunching] = useState(null);
+// One quiz row in the list: thumbnail, question count, its permanent join link/QR, and actions.
+function QuizCard({ quiz, index, total, onMoveUp, onMoveDown, onEditQuestions, onEditSettings, onPreview }) {
   const navigate = useNavigate();
+  const [launching, setLaunching] = useState(false);
+  const [joinCode, setJoinCode] = useState(quiz.joinCode || null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
-  async function handleDelete(id) {
-    if (!confirm('למחוק את החידון?')) return;
-    await remove(ref(db, `quizzes/${id}`));
+  useEffect(() => {
+    setJoinCode(quiz.joinCode || null);
+  }, [quiz.joinCode]);
+
+  // Every quiz gets a permanent join code/link/QR as soon as it appears in the list, so it can
+  // be shared before the game is even launched, and stays valid across relaunches.
+  useEffect(() => {
+    if (joinCode) return;
+    let cancelled = false;
+    generateUniqueSessionCode().then(async (code) => {
+      if (cancelled) return;
+      setJoinCode(code);
+      await update(ref(db, `quizzes/${quiz.id}`), { joinCode: code });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quiz.id]);
+
+  async function resetJoinCode() {
+    if (!confirm('לאפס את הקישור? הקישור וה-QR הישנים יפסיקו לעבוד.')) return;
+    const oldCode = joinCode;
+    const newCode = await generateUniqueSessionCode();
+    setJoinCode(newCode);
+    await update(ref(db, `quizzes/${quiz.id}`), { joinCode: newCode });
+    if (oldCode) {
+      try { await remove(ref(db, `sessions/${oldCode}`)); } catch (err) { console.error(err); }
+    }
   }
 
-  async function handleLaunch(quiz) {
-    setLaunching(quiz.id);
+  async function copyJoinLink() {
     try {
-      let pin = generatePin();
-      for (let i = 0; i < 5; i++) {
-        const snap = await get(ref(db, `sessions/${pin}`));
-        if (!snap.exists()) break;
-        pin = generatePin();
+      await navigator.clipboard.writeText(joinUrl(joinCode));
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleLaunch() {
+    setLaunching(true);
+    try {
+      let pin = joinCode;
+      if (!pin) {
+        pin = await generateUniqueSessionCode();
+        setJoinCode(pin);
+        await update(ref(db, `quizzes/${quiz.id}`), { joinCode: pin });
       }
       await set(ref(db, `sessions/${pin}`), {
         quizId: quiz.id,
-        quiz: { title: quiz.title, questions: quiz.questions, coverImageURL: quiz.coverImageURL || null, answerButtonStyle: quiz.answerButtonStyle || 'text', closingSlide: quiz.closingSlide || null },
+        quiz: {
+          title: quiz.title, questions: quiz.questions || [], coverImageURL: quiz.coverImageURL || null,
+          answerButtonStyle: quiz.answerButtonStyle || 'text', questionLayout: quiz.questionLayout || 'boxed',
+          manualTimer: !!quiz.manualTimer, closingSlide: quiz.closingSlide || null,
+        },
         status: 'lobby',
         currentIndex: -1,
         questionStartedAt: null,
@@ -704,9 +847,96 @@ function QuizList({ quizzes, onEdit, onAddNew }) {
       sessionStorage.setItem('quiz_admin_ok', '1');
       navigate('/present');
     } finally {
-      setLaunching(null);
+      setLaunching(false);
     }
   }
+
+  const infoLine = [
+    `${quiz.questions?.length || 0} שאלות`,
+    quiz.manualTimer ? 'ללא טיימר' : 'עם טיימר',
+    quiz.questionLayout === 'full' ? 'רקע מלא' : 'תצוגה רגילה',
+    `בפלאפון: ${quiz.answerButtonStyle === 'shape' ? 'צורה וצבע בלבד' : 'טקסט מלא'}`,
+  ].join(' | ');
+
+  return (
+    <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
+          <button type="button" disabled={index === 0} onClick={onMoveUp} title="הזז למעלה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: index === 0 ? 0.35 : 1 }}><ChevronUpCircleIcon size={24} /></button>
+          <button type="button" disabled={index === total - 1} onClick={onMoveDown} title="הזז למטה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: index === total - 1 ? 0.35 : 1 }}><ChevronDownCircleIcon size={24} /></button>
+        </div>
+
+        <div style={{ width: 130, flexShrink: 0, position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1280 / 850', background: 'var(--surface-strong)' }}>
+          {quiz.coverImageURL ? (
+            <img src={quiz.coverImageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={32} /></div>
+          )}
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.15)', pointerEvents: 'none',
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%', background: 'rgba(0,0,0,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+            }}><PlayIcon size={20} /></div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: 22 }}>{quiz.title}</div>
+          <div className="dim" style={{ fontSize: 13, fontWeight: 600 }}>{infoLine}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-secondary" onClick={onEditSettings} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SettingsIcon size={18} /> עריכת הגדרות</button>
+        <button type="button" className="btn btn-secondary" onClick={onEditQuestions} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PlusIcon size={18} /> הוספת שאלות</button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!quiz.questions?.length}
+          onClick={onPreview}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <EyeIcon size={19} /> תצוגה מקדימה
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!quiz.questions?.length || launching}
+          onClick={handleLaunch}
+          style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 22px' }}
+        >
+          {launching ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
+        </button>
+      </div>
+
+      {joinCode && (
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 16, flexWrap: 'wrap', background: 'var(--surface-strong)', borderRadius: 14, padding: 14 }}>
+          <div style={{ background: 'white', borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+            <QRCodeSVG value={joinUrl(joinCode)} size={64} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 220, justifyContent: 'center' }}>
+            <span className="dim" style={{ fontSize: 13, fontWeight: 600 }}>קישור קבוע להצטרפות — אותו קישור בכל הפעלה, אפשר לשתף מראש</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <code style={{ fontSize: 13, background: 'var(--bg-1)', padding: '5px 10px', borderRadius: 6, direction: 'ltr', flex: 1, minWidth: 160 }}>{joinUrl(joinCode)}</code>
+              <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 5 }} onClick={copyJoinLink}>
+                <ShareIcon size={14} /> {linkCopied ? 'הועתק ✓' : 'העתק קישור'}
+              </button>
+              <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={resetJoinCode}>
+                🔄 אפס לינק
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuizList({ quizzes, onEditQuestions, onEditSettings, onAddNew }) {
+  const [previewQuiz, setPreviewQuiz] = useState(null);
 
   async function handleSaveQuestion(idx, updated) {
     const cleaned = {
@@ -748,62 +978,21 @@ function QuizList({ quizzes, onEdit, onAddNew }) {
       {!quizzes.length ? (
         <div className="dim">עדיין אין חידונים שמורים.</div>
       ) : (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
-      {quizzes.map((q, idx) => (
-        <div key={q.id} className="card" style={{ padding: 24, display: 'flex', alignItems: 'stretch', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0 }}>
-            <button type="button" disabled={idx === 0} onClick={() => moveQuiz(idx, -1)} title="הזז למעלה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === 0 ? 0.35 : 1 }}><ChevronUpCircleIcon size={24} /></button>
-            <button type="button" disabled={idx === quizzes.length - 1} onClick={() => moveQuiz(idx, 1)} title="הזז למטה" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === quizzes.length - 1 ? 0.35 : 1 }}><ChevronDownCircleIcon size={24} /></button>
-          </div>
-
-          <div style={{ width: 160, flexShrink: 0, position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1280 / 850', background: 'var(--surface-strong)' }}>
-            {q.coverImageURL ? (
-              <img src={q.coverImageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon size={32} /></div>
-            )}
-            <div style={{
-              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(0,0,0,0.15)', pointerEvents: 'none',
-            }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: '50%', background: 'rgba(0,0,0,0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
-              }}><PlayIcon size={20} /></div>
-            </div>
-          </div>
-
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 800, fontSize: 22 }}>{q.title}</div>
-              <div className="dim" style={{ fontSize: 14, fontWeight: 600 }}>{q.questions?.length || 0} שאלות</div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => onEdit(q)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><EditIcon size={18} /> עריכה / הוספת שאלות</button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={!q.questions?.length}
-                onClick={() => setPreviewQuiz(q)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <EyeIcon size={19} /> תצוגה מקדימה
-              </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={!q.questions?.length || launching === q.id}
-                onClick={() => handleLaunch(q)}
-                style={{ boxShadow: '0 4px 12px rgba(142,45,226,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {launching === q.id ? 'מפעיל...' : (<><PlayIcon size={19} /> הפעל חידון</>)}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => handleDelete(q.id)} title="מחיקה" style={{ padding: '10px 16px' }}><TrashIcon size={20} /></button>
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+          {quizzes.map((q, idx) => (
+            <QuizCard
+              key={q.id}
+              quiz={q}
+              index={idx}
+              total={quizzes.length}
+              onMoveUp={() => moveQuiz(idx, -1)}
+              onMoveDown={() => moveQuiz(idx, 1)}
+              onEditQuestions={() => onEditQuestions(q)}
+              onEditSettings={() => onEditSettings(q)}
+              onPreview={() => setPreviewQuiz(q)}
+            />
+          ))}
         </div>
-      ))}
-      </div>
       )}
 
       {previewQuiz && (
@@ -815,6 +1004,8 @@ function QuizList({ quizzes, onEdit, onAddNew }) {
           onSaveQuestion={handleSaveQuestion}
           onClose={() => setPreviewQuiz(null)}
           coverImageURL={previewQuiz.coverImageURL}
+          questionLayout={previewQuiz.questionLayout}
+          manualTimer={previewQuiz.manualTimer}
         />
       )}
     </div>
@@ -825,6 +1016,7 @@ function AdminInner() {
   const [quizzes, setQuizzes] = useState([]);
   const [mode, setMode] = useState('list');
   const [editingQuiz, setEditingQuiz] = useState(null);
+  const [settingsTarget, setSettingsTarget] = useState(null); // null | 'new' | quiz object
 
   useEffect(() => {
     const quizzesRef = ref(db, 'quizzes');
@@ -835,13 +1027,18 @@ function AdminInner() {
     });
   }, []);
 
-  function startNew() {
-    setEditingQuiz(null);
+  function editQuestions(quiz) {
+    setEditingQuiz(quiz);
     setMode('builder');
   }
 
-  function startEdit(quiz) {
-    setEditingQuiz(quiz);
+  function goToList() {
+    setMode('list');
+  }
+
+  function handleGoToQuestions(savedQuiz) {
+    setSettingsTarget(null);
+    setEditingQuiz(savedQuiz);
     setMode('builder');
   }
 
@@ -854,9 +1051,22 @@ function AdminInner() {
       </div>
 
       {mode === 'list' ? (
-        <QuizList quizzes={quizzes} onEdit={startEdit} onAddNew={startNew} />
+        <QuizList
+          quizzes={quizzes}
+          onEditQuestions={editQuestions}
+          onEditSettings={(quiz) => setSettingsTarget(quiz)}
+          onAddNew={() => setSettingsTarget('new')}
+        />
       ) : (
-        <QuizBuilder key={editingQuiz?.id || 'new'} existingQuiz={editingQuiz} onDone={() => setMode('list')} onBackToList={() => setMode('list')} />
+        <QuestionsBuilder key={editingQuiz.id} quiz={editingQuiz} onDone={goToList} onBackToList={goToList} />
+      )}
+
+      {settingsTarget && (
+        <QuizSettingsModal
+          quiz={settingsTarget === 'new' ? null : settingsTarget}
+          onClose={() => setSettingsTarget(null)}
+          onGoToQuestions={handleGoToQuestions}
+        />
       )}
     </div>
   );

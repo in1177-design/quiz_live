@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { ref, onValue, set, update, get } from 'firebase/database';
+import { ref, onValue, set, update } from 'firebase/database';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import Podium from '../components/Podium.jsx';
-import { QuestionCard } from '../components/QuestionDisplay.jsx';
+import { QuestionCard, FullBackgroundQuestionCard } from '../components/QuestionDisplay.jsx';
 import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon, ImageIcon } from '../components/icons.jsx';
-import { generatePin } from '../utils/ids.js';
-
-function joinUrl(pin) {
-  return `${window.location.origin}${window.location.pathname}#/play?pin=${pin}`;
-}
+import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 
 function QuizSelect({ onStart }) {
   const [quizzes, setQuizzes] = useState([]);
@@ -32,18 +28,23 @@ function QuizSelect({ onStart }) {
     const quiz = quizzes.find((q) => q.id === selected);
     if (!quiz) return;
     setStarting(true);
-    let pin = generatePin();
-    for (let i = 0; i < 5; i++) {
-      const snap = await get(ref(db, `sessions/${pin}`));
-      if (!snap.exists()) break;
-      pin = generatePin();
+    let pin = quiz.joinCode;
+    if (!pin) {
+      pin = await generateUniqueSessionCode();
+      await update(ref(db, `quizzes/${quiz.id}`), { joinCode: pin });
     }
     await set(ref(db, `sessions/${pin}`), {
       quizId: quiz.id,
-      quiz: { title: quiz.title, questions: quiz.questions, coverImageURL: quiz.coverImageURL || null },
+      quiz: {
+        title: quiz.title, questions: quiz.questions, coverImageURL: quiz.coverImageURL || null,
+        answerButtonStyle: quiz.answerButtonStyle || 'text', questionLayout: quiz.questionLayout || 'boxed',
+        manualTimer: !!quiz.manualTimer, closingSlide: quiz.closingSlide || null,
+      },
       status: 'lobby',
       currentIndex: -1,
       questionStartedAt: null,
+      players: {},
+      answers: {},
       createdAt: Date.now(),
     });
     onStart(pin);
@@ -216,10 +217,13 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   const answers = session.answers?.[session.currentIndex] || {};
   const players = session.players || {};
   const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
+  const hasImage = !!(q.imageURL || q.answerImageURL || session.quiz.coverImageURL);
+  const fullBackground = session.quiz.questionLayout === 'full' && hasImage;
+  const manualTimer = !!session.quiz.manualTimer;
 
   useEffect(() => {
     firedRef.current = false;
-    if (session.status !== 'question') return;
+    if (session.status !== 'question' || manualTimer) return;
     const started = session.questionStartedAt;
     const tick = () => {
       const left = Math.max(0, q.timeLimit - (Date.now() - started) / 1000);
@@ -233,10 +237,21 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.currentIndex, session.questionStartedAt, session.status]);
+  }, [session.currentIndex, session.questionStartedAt, session.status, manualTimer]);
 
   function skipToAnswers() {
     if (!firedRef.current) { firedRef.current = true; onTimeUp(); }
+  }
+
+  const headerLabel = `${session.quiz.title} · שאלה ${session.currentIndex + 1} מתוך ${session.quiz.questions.length}`;
+
+  if (fullBackground) {
+    return (
+      <>
+        <FullBackgroundQuestionCard q={q} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} />
+        <CornerActionButtons onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" eyeEnabled={!revealed} onNext={onNext} nextEnabled={revealed} />
+      </>
+    );
   }
 
   return (
@@ -247,7 +262,8 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
         secondsLeft={secondsLeft}
         voters={voters}
         coverImageURL={session.quiz.coverImageURL}
-        headerLabel={`${session.quiz.title} · שאלה ${session.currentIndex + 1} מתוך ${session.quiz.questions.length}`}
+        headerLabel={headerLabel}
+        manualTimer={manualTimer}
       />
       <CornerActionButtons
         onEyeClick={skipToAnswers}

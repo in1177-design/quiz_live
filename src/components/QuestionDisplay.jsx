@@ -56,7 +56,7 @@ export function AnswerGrid({ options, correctIndex, revealed, voters }) {
 
 const FADE = 'opacity 0.6s ease';
 
-export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, coverImageURL }) {
+export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, coverImageURL, manualTimer }) {
   const qImg = q.imageURL || coverImageURL;
   const aImg = q.answerImageURL || q.imageURL || coverImageURL;
   const hasAnyImage = !!(qImg || aImg);
@@ -67,7 +67,7 @@ export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, co
 
       <div style={{ width: '100%', display: 'grid' }}>
         <div aria-hidden={revealed} style={{ gridArea: '1 / 1', display: 'flex', justifyContent: 'center', opacity: revealed ? 0 : 1, pointerEvents: revealed ? 'none' : 'auto', transition: FADE }}>
-          <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />
+          {!manualTimer && <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />}
         </div>
         <div aria-hidden={!revealed} style={{ gridArea: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none', transition: FADE }}>
           {q.answerExplanation && <div style={{ fontSize: 30, fontWeight: 700, color: '#f59e0b' }}>{q.answerExplanation}</div>}
@@ -94,6 +94,51 @@ export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, co
       </div>
 
       <AnswerGrid options={q.options} correctIndex={q.correctIndex} revealed={revealed} voters={voters} />
+    </div>
+  );
+}
+
+// Full-screen layout: the image is stretched as a cover background across the whole
+// screen (proportions preserved, edges cropped as needed) and the question + answers
+// float as a layer stuck near the bottom of the screen.
+export function FullBackgroundQuestionCard({ q, revealed, secondsLeft, voters, headerLabel, coverImageURL, manualTimer }) {
+  const qImg = q.imageURL || coverImageURL;
+  const aImg = q.answerImageURL || q.imageURL || coverImageURL;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
+      {qImg && (
+        <img src={qImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: revealed ? 0 : 1, transition: FADE }} />
+      )}
+      {aImg && (
+        <img src={aImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: revealed ? 1 : 0, transition: FADE }} />
+      )}
+
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 26%, rgba(0,0,0,0.18) 52%, rgba(0,0,0,0) 72%)' }} />
+
+      {headerLabel && (
+        <div style={{ position: 'absolute', top: 20, right: 24, color: 'rgba(255,255,255,0.75)', fontSize: 13, textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}>
+          {headerLabel}
+        </div>
+      )}
+
+      <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', justifyContent: 'center' }}>
+        {!revealed && !manualTimer && <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />}
+        {revealed && q.answerExplanation && (
+          <div style={{ fontSize: 26, fontWeight: 700, color: '#f59e0b', textAlign: 'center', maxWidth: 900, textShadow: '0 2px 10px rgba(0,0,0,0.85)' }}>
+            {q.answerExplanation}
+          </div>
+        )}
+      </div>
+
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '0 32px' }}>
+        <div style={{ fontSize: 30, fontWeight: 800, color: 'white', textAlign: 'center', maxWidth: 1200, textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+          {q.text || '(אין טקסט שאלה)'}
+        </div>
+        <div style={{ width: '100%', maxWidth: 1240 }}>
+          <AnswerGrid options={q.options} correctIndex={q.correctIndex} revealed={revealed} voters={voters} />
+        </div>
+      </div>
     </div>
   );
 }

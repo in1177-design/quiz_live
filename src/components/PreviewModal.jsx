@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { QuestionCard } from './QuestionDisplay.jsx';
+import { QuestionCard, FullBackgroundQuestionCard } from './QuestionDisplay.jsx';
 import EditingQuestionCard from './QuestionEditorCard.jsx';
 import { EyeIcon, EditIcon, LeftSquareIcon, RightSquareIcon, CloseIcon, ImageIcon } from './icons.jsx';
 
@@ -32,12 +32,14 @@ function iconBtnStyle(active, disabled) {
   };
 }
 
-export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion, coverImageURL }) {
+export default function PreviewModal({ questions, startIndex = 0, onClose, quizId, quizTitle, onSaveQuestion, coverImageURL, questionLayout, manualTimer }) {
   const [index, setIndex] = useState(startIndex);
   const [revealed, setRevealed] = useState(false);
   const [draft, setDraft] = useState(null);
   const q = questions[index];
   const isSlide = q?.type === 'slide';
+  const hasImage = !!(q?.imageURL || q?.answerImageURL || coverImageURL);
+  const fullBackground = !isSlide && questionLayout === 'full' && hasImage;
 
   function go(delta) {
     setRevealed(false);
@@ -64,8 +66,8 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
         backgroundImage: 'radial-gradient(1200px 800px at 15% -10%, var(--bg-3), transparent), radial-gradient(1000px 700px at 110% 10%, #4c1d95aa, transparent)',
       }}
     >
-      <div style={{ width: '100%', maxWidth: 1380, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
-        <div style={{ fontSize: 14 }}>
+      <div style={{ width: '100%', maxWidth: 1380, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 16, position: 'relative', zIndex: 10 }}>
+        <div style={{ fontSize: 14, ...(fullBackground ? { background: 'rgba(15,12,32,0.75)', padding: '8px 14px', borderRadius: 10 } : {}) }}>
           <span className="dim">ניהול חידונים</span>
           <span className="dim"> / </span>
           <span className="dim">החידונים שלי</span>
@@ -89,9 +91,9 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
       </div>
 
       <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        {isSlide
-          ? <SlidePreview item={q} coverImageURL={coverImageURL} />
-          : <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} />}
+        {isSlide && <SlidePreview item={q} coverImageURL={coverImageURL} />}
+        {!isSlide && fullBackground && <FullBackgroundQuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} />}
+        {!isSlide && !fullBackground && <QuestionCard q={q} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} />}
       </div>
 
       {draft && (
