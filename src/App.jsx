@@ -3,6 +3,7 @@ import Admin from './pages/Admin.jsx';
 import Presenter from './pages/Presenter.jsx';
 import Player from './pages/Player.jsx';
 import Remote from './pages/Remote.jsx';
+import Slide12 from './pages/Slide12.jsx';
 
 function Home() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/present" element={<Presenter />} />
         <Route path="/play" element={<Player />} />
         <Route path="/remote" element={<Remote />} />
+        <Route path="/slide-12" element={<Slide12 />} />
       </Routes>
     </HashRouter>
   );
