@@ -6,6 +6,7 @@ import PasswordGate from '../components/PasswordGate.jsx';
 import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 import { DISPLAY_LANGUAGES } from '../utils/languages.js';
 import { PauseIcon, RefreshIcon, PlusIcon, MinusIcon, CheckIcon } from '../components/icons.jsx';
+import { LTR_FONT } from '../components/QuestionDisplay.jsx';
 
 function presentUrl(pin) {
   return `${window.location.origin}${window.location.pathname}#/present?pin=${pin}`;
@@ -454,7 +455,7 @@ function RemoteControls({ pin, session, onExit }) {
 
       {isLiveItem && displayQ && !isSlide && (
         <div className="card" style={{ padding: 18, textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, direction: readTranslated ? 'ltr' : 'rtl', textAlign: readTranslated ? 'left' : 'right' }}>
+          <div style={{ fontWeight: 700, fontSize: 16, direction: readTranslated ? 'ltr' : 'rtl', textAlign: readTranslated ? 'left' : 'right', fontFamily: readTranslated ? LTR_FONT.fontFamily : undefined }}>
             {displayQ.text || '(אין טקסט שאלה)'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

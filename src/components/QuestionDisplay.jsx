@@ -1,6 +1,14 @@
 import { AvatarStack, pastelFor } from './BarChart.jsx';
 import { ImageIcon } from './icons.jsx';
 
+// Applied to translated (non-Hebrew) text on the presenter screen — tall, more legible from a
+// distance than the default Hebrew font. Bold for the question title, light for the answers,
+// medium for the reveal explanation. Harmless on Hebrew text since Roboto Condensed has no
+// Hebrew glyphs and the browser falls back to the default font for those.
+export const LTR_FONT = { fontFamily: "'Roboto Condensed', sans-serif", fontWeight: 700 };
+export const LTR_FONT_LIGHT = { fontFamily: "'Roboto Condensed', sans-serif", fontWeight: 300 };
+export const LTR_FONT_MEDIUM = { fontFamily: "'Roboto Condensed', sans-serif", fontWeight: 500 };
+
 // A celebratory banner the presenter can toggle on (from the remote) while an answer is
 // revealed — up to 3 of the players who answered correctly, shown as circles over the screen.
 export function CorrectAnswerSpotlight({ voters }) {
@@ -60,7 +68,14 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, ltr, fontS
             {i + 1}
           </div>
         );
-        const text = <div style={{ flex: 1, minWidth: 0, textAlign: ltr ? 'left' : 'right', direction: ltr ? 'ltr' : 'rtl', fontWeight: 700, fontSize: 24 * fontScale, color: 'white' }}>{opt}</div>;
+        const text = (
+          <div style={{
+            flex: 1, minWidth: 0, textAlign: ltr ? 'left' : 'right', direction: ltr ? 'ltr' : 'rtl',
+            fontWeight: 700, fontSize: 24 * fontScale, color: 'white', ...(ltr ? LTR_FONT_LIGHT : {}),
+          }}>
+            {opt}
+          </div>
+        );
         const voteCount = <div style={{ fontWeight: 800, fontSize: 20 * fontScale, color: 'white', flexShrink: 0, minWidth: 20, textAlign: 'center' }}>{count}</div>;
         return (
           <div key={i} style={{ position: 'relative' }}>
@@ -84,6 +99,37 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, ltr, fontS
 
 const FADE = 'opacity 0.6s ease';
 
+// Shows the answer explanation. With a translation (q.answerExplanationHe set), it's two
+// separate semi-transparent boxes stacked up — the display language on top, Hebrew below it
+// in a smaller font. With no translation, it's just the one plain text as before.
+function ExplanationText({ q, ltr, fontScale, size }) {
+  if (!q.answerExplanation) return null;
+  if (!q.answerExplanationHe) {
+    return (
+      <div style={{ fontSize: size * fontScale, fontWeight: 700, color: '#f59e0b', direction: ltr ? 'ltr' : 'rtl', textAlign: 'center', ...(ltr ? LTR_FONT_MEDIUM : {}) }}>
+        {q.answerExplanation}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+      <div style={{
+        background: 'rgba(0,0,0,0.55)', borderRadius: 14, padding: '10px 22px', maxWidth: 1100,
+        fontSize: size * fontScale, fontWeight: 700, color: '#f59e0b', textAlign: 'center', direction: ltr ? 'ltr' : 'rtl',
+        ...LTR_FONT_MEDIUM,
+      }}>
+        {q.answerExplanation}
+      </div>
+      <div style={{
+        background: 'rgba(0,0,0,0.55)', borderRadius: 12, padding: '7px 18px', maxWidth: 1100,
+        fontSize: size * fontScale * 0.68, fontWeight: 700, color: '#f59e0b', textAlign: 'center', direction: 'rtl',
+      }}>
+        {q.answerExplanationHe}
+      </div>
+    </div>
+  );
+}
+
 export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, coverImageURL, manualTimer, ltr, fontScale = 1 }) {
   const qImg = q.imageURL || coverImageURL;
   const aImg = q.answerImageURL || q.imageURL || coverImageURL;
@@ -98,11 +144,11 @@ export function QuestionCard({ q, revealed, secondsLeft, voters, headerLabel, co
           {!manualTimer && <PillTimer secondsLeft={secondsLeft} totalSeconds={q.timeLimit} />}
         </div>
         <div aria-hidden={!revealed} style={{ gridArea: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: revealed ? 1 : 0, pointerEvents: revealed ? 'auto' : 'none', transition: FADE }}>
-          {q.answerExplanation && <div style={{ fontSize: 30 * fontScale, fontWeight: 700, color: '#f59e0b', direction: ltr ? 'ltr' : 'rtl' }}>{q.answerExplanation}</div>}
+          <ExplanationText q={q} ltr={ltr} fontScale={fontScale} size={30} />
         </div>
       </div>
 
-      <div className="title" style={{ fontSize: 28 * fontScale, textAlign: 'center', opacity: revealed ? 0.5 : 1, transition: FADE, direction: ltr ? 'ltr' : 'rtl' }}>{q.text || '(אין טקסט שאלה)'}</div>
+      <div className="title" style={{ fontSize: 28 * fontScale, textAlign: 'center', opacity: revealed ? 0.5 : 1, transition: FADE, direction: ltr ? 'ltr' : 'rtl', ...(ltr ? LTR_FONT : {}) }}>{q.text || '(אין טקסט שאלה)'}</div>
 
       <div style={{
         position: 'relative', width: '100%', maxWidth: 1240, aspectRatio: '1240 / 800', borderRadius: 20,
@@ -158,14 +204,15 @@ export function FullBackgroundQuestionCard({ q, revealed, secondsLeft, voters, h
 
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '0 32px' }}>
         {revealed && q.answerExplanation && (
-          <div style={{
-            background: 'rgba(0,0,0,0.6)', borderRadius: 16, padding: '16px 28px', maxWidth: 1000,
-            fontSize: 24 * fontScale, fontWeight: 700, color: '#f59e0b', textAlign: 'center', direction: ltr ? 'ltr' : 'rtl',
-          }}>
-            {q.answerExplanation}
-          </div>
+          q.answerExplanationHe ? (
+            <ExplanationText q={q} ltr={ltr} fontScale={fontScale} size={24} />
+          ) : (
+            <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: 16, padding: '16px 28px', maxWidth: 1200 }}>
+              <ExplanationText q={q} ltr={ltr} fontScale={fontScale} size={24} />
+            </div>
+          )
         )}
-        <div style={{ fontSize: 30 * fontScale, fontWeight: 800, color: 'white', textAlign: 'center', maxWidth: 1200, textShadow: '0 2px 12px rgba(0,0,0,0.9)', direction: ltr ? 'ltr' : 'rtl' }}>
+        <div style={{ fontSize: 30 * fontScale, fontWeight: 800, color: 'white', textAlign: 'center', maxWidth: 1200, textShadow: '0 2px 12px rgba(0,0,0,0.9)', direction: ltr ? 'ltr' : 'rtl', ...(ltr ? LTR_FONT : {}) }}>
           {q.text || '(אין טקסט שאלה)'}
         </div>
         <div style={{ width: '100%', maxWidth: 1240 }}>

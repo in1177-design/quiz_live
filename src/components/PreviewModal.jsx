@@ -48,6 +48,8 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
         text: q.textTranslated || q.text,
         options: q.options.map((o, i) => q.optionsTranslated?.[i] || o),
         answerExplanation: q.answerExplanationTranslated || q.answerExplanation,
+        // Kept alongside the translated explanation so the reveal can show both side by side.
+        answerExplanationHe: q.answerExplanationTranslated ? q.answerExplanation : null,
       }
     : q;
 
