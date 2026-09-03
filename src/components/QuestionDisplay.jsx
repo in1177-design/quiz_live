@@ -63,8 +63,11 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, ltr, fontS
 
   // All 4 tiles share one height — the tallest one's natural content height — so a longer
   // answer (or a bigger fontScale wrapping it to more lines) doesn't leave one row shorter
-  // than the other. Re-measured whenever the text, language, or font size changes.
+  // than the other. Re-measured whenever the text, language, or font size changes — clearing
+  // the previously-forced height first, otherwise scrollHeight would just echo back that old
+  // value forever and the boxes could grow but never shrink back down.
   useLayoutEffect(() => {
+    tileRefs.current.forEach((el) => { if (el) el.style.height = 'auto'; });
     const heights = tileRefs.current.map((el) => el?.scrollHeight || 0);
     setTileHeight(Math.max(100 * fontScale, ...heights));
   }, [options, ltr, fontScale]);
