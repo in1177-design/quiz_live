@@ -5,7 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import Podium from '../components/Podium.jsx';
-import { QuestionCard, FullBackgroundQuestionCard } from '../components/QuestionDisplay.jsx';
+import { QuestionCard, FullBackgroundQuestionCard, CorrectAnswerSpotlight } from '../components/QuestionDisplay.jsx';
 import { EyeIcon, RightSquareIcon, ShareIcon, SettingsIcon, ImageIcon, PlusIcon, MinusIcon } from '../components/icons.jsx';
 import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 
@@ -227,7 +227,10 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   const firedRef = useRef(false);
   const answers = session.answers?.[session.currentIndex] || {};
   const players = session.players || {};
-  const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers).filter(([, a]) => a.optionIndex === oi).map(([pid]) => players[pid]));
+  const voters = [0, 1, 2, 3].map((oi) => Object.entries(answers)
+    .filter(([, a]) => a.optionIndex === oi)
+    .sort(([, a], [, b]) => (a.answeredAt || 0) - (b.answeredAt || 0))
+    .map(([pid]) => players[pid]));
   const hasImage = !!(q.imageURL || q.answerImageURL || session.quiz.coverImageURL);
   const fullBackground = session.quiz.questionLayout === 'full' && hasImage;
   const manualTimer = !!session.quiz.manualTimer;
@@ -273,11 +276,13 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   }
 
   const headerLabel = `${session.quiz.title} · שאלה ${session.currentIndex + 1} מתוך ${session.quiz.questions.length}`;
+  const spotlight = revealed && session.spotlight && <CorrectAnswerSpotlight voters={voters[q.correctIndex]} />;
 
   if (fullBackground) {
     return (
       <>
         <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} ltr={ltr} fontScale={fontScale} />
+        {spotlight}
         <CornerActionButtons onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" eyeEnabled={!revealed} onNext={onNext} nextEnabled={revealed} onFontUp={() => bumpFont(0.1)} onFontDown={() => bumpFont(-0.1)} />
       </>
     );
@@ -296,6 +301,7 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
         ltr={ltr}
         fontScale={fontScale}
       />
+      {spotlight}
       <CornerActionButtons
         onEyeClick={skipToAnswers}
         eyeTitle="דלג לתשובות"
@@ -435,12 +441,12 @@ function PresenterInner() {
     if (nextIndex < session.quiz.questions.length) {
       const nextItem = session.quiz.questions[nextIndex];
       if (nextItem.type === 'slide') {
-        await update(ref(db, `sessions/${pin}`), { status: 'slide', currentIndex: nextIndex, questionStartedAt: null });
+        await update(ref(db, `sessions/${pin}`), { status: 'slide', currentIndex: nextIndex, questionStartedAt: null, spotlight: null });
       } else {
-        await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: nextIndex, questionStartedAt: Date.now() });
+        await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: nextIndex, questionStartedAt: Date.now(), spotlight: null });
       }
     } else {
-      await update(ref(db, `sessions/${pin}`), { status: 'final' });
+      await update(ref(db, `sessions/${pin}`), { status: 'final', spotlight: null });
     }
   }
 

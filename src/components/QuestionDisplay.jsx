@@ -1,5 +1,33 @@
-import { AvatarStack } from './BarChart.jsx';
+import { AvatarStack, pastelFor } from './BarChart.jsx';
 import { ImageIcon } from './icons.jsx';
+
+// A celebratory banner the presenter can toggle on (from the remote) while an answer is
+// revealed — up to 3 of the players who answered correctly, shown as circles over the screen.
+export function CorrectAnswerSpotlight({ voters }) {
+  if (!voters?.length) return null;
+  const shown = voters.slice(0, 3);
+  return (
+    <div style={{
+      position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 60,
+      display: 'flex', gap: 20, alignItems: 'flex-start', background: 'rgba(0,0,0,0.6)',
+      padding: '16px 26px', borderRadius: 20, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+    }}>
+      {shown.map((p, i) => (
+        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 84 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%', border: `3px solid ${pastelFor(p?.name ?? i)}`, overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, background: 'white', flexShrink: 0,
+          }}>
+            {p?.avatar?.type === 'photo'
+              ? <img src={p.avatar.value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : p?.avatar?.value}
+          </div>
+          <div style={{ color: 'white', fontWeight: 700, fontSize: 13, textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>{p?.name}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function PillTimer({ secondsLeft, totalSeconds }) {
   const pct = Math.max(0, Math.min(1, secondsLeft / totalSeconds));

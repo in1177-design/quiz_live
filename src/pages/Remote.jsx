@@ -5,7 +5,7 @@ import { db } from '../firebase.js';
 import PasswordGate from '../components/PasswordGate.jsx';
 import { generateUniqueSessionCode, joinUrl } from '../utils/ids.js';
 import { DISPLAY_LANGUAGES } from '../utils/languages.js';
-import { PauseIcon, RefreshIcon, PlusIcon, MinusIcon } from '../components/icons.jsx';
+import { PauseIcon, RefreshIcon, PlusIcon, MinusIcon, CheckIcon } from '../components/icons.jsx';
 
 function presentUrl(pin) {
   return `${window.location.origin}${window.location.pathname}#/present?pin=${pin}`;
@@ -286,13 +286,19 @@ function RemoteControls({ pin, session, onExit }) {
     if (nextIndex < session.quiz.questions.length) {
       const next = session.quiz.questions[nextIndex];
       if (next.type === 'slide') {
-        await update(ref(db, `sessions/${pin}`), { status: 'slide', currentIndex: nextIndex, questionStartedAt: null });
+        await update(ref(db, `sessions/${pin}`), { status: 'slide', currentIndex: nextIndex, questionStartedAt: null, spotlight: null });
       } else {
-        await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: nextIndex, questionStartedAt: Date.now() });
+        await update(ref(db, `sessions/${pin}`), { status: 'question', currentIndex: nextIndex, questionStartedAt: Date.now(), spotlight: null });
       }
     } else {
-      await update(ref(db, `sessions/${pin}`), { status: 'final' });
+      await update(ref(db, `sessions/${pin}`), { status: 'final', spotlight: null });
     }
+  }
+
+  // Spotlights up to 3 of the players who answered the current question correctly, as a banner
+  // over the big screen — toggled off automatically when moving on from this question.
+  async function toggleSpotlight() {
+    await update(ref(db, `sessions/${pin}`), { spotlight: !session.spotlight });
   }
 
   async function goToClosing() {
@@ -325,7 +331,7 @@ function RemoteControls({ pin, session, onExit }) {
     );
     await update(ref(db, `sessions/${pin}`), {
       status: 'lobby', currentIndex: -1, questionStartedAt: null, answers: {},
-      pausedFromStatus: null, pausedAt: null, players: resetPlayers,
+      pausedFromStatus: null, pausedAt: null, players: resetPlayers, spotlight: null,
     });
   }
 
@@ -387,6 +393,17 @@ function RemoteControls({ pin, session, onExit }) {
               {DISPLAY_LANGUAGES[secondLang]?.label}
             </button>
           </div>
+        )}
+        {status === 'reveal' && (
+          <button
+            type="button"
+            onClick={toggleSpotlight}
+            title="הצג מי שענה נכון"
+            aria-label="הצג מי שענה נכון"
+            style={session.spotlight ? { ...iconOnlyBtnStyle(), background: 'var(--accent)', borderColor: 'var(--accent)' } : iconOnlyBtnStyle()}
+          >
+            <CheckIcon size={20} />
+          </button>
         )}
         <button type="button" onClick={restartGame} style={iconOnlyBtnStyle()} title="התחל מחדש" aria-label="התחל מחדש">
           <RefreshIcon size={20} />

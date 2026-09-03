@@ -2,7 +2,7 @@ const SHAPES = ['▲', '◆', '●', '■'];
 
 const PASTELS = ['#fca5a5', '#fdba74', '#fde047', '#bef264', '#86efac', '#5eead4', '#7dd3fc', '#93c5fd', '#c4b5fd', '#f0abfc', '#f9a8d4', '#fca5a5'];
 
-function pastelFor(seed) {
+export function pastelFor(seed) {
   const s = String(seed ?? '');
   let hash = 0;
   for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
