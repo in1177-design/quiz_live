@@ -91,7 +91,9 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, ltr, fontS
             {opt}
           </div>
         );
-        const voteCount = <div style={{ fontWeight: 800, fontSize: 20 * fontScale, color: 'white', flexShrink: 0, minWidth: 20, textAlign: 'center' }}>{count}</div>;
+        // Hidden until revealed — showing live per-option counts while the question is still
+        // open gives away a hint (e.g. "everyone's picking option 2").
+        const voteCount = <div style={{ fontWeight: 800, fontSize: 20 * fontScale, color: 'white', flexShrink: 0, minWidth: 20, textAlign: 'center' }}>{revealed ? count : ''}</div>;
         return (
           <div key={i} style={{ position: 'relative' }}>
             {revealed && count > 0 && (
