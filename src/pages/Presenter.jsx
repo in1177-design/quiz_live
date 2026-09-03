@@ -283,7 +283,7 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   if (fullBackground) {
     return (
       <>
-        <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} ltr={ltr} fontScale={fontScale} />
+        <FullBackgroundQuestionCard key={session.currentIndex} q={displayQ} revealed={revealed} secondsLeft={secondsLeft} voters={voters} coverImageURL={session.quiz.coverImageURL} headerLabel={headerLabel} manualTimer={manualTimer} ltr={ltr} fontScale={fontScale} />
         {spotlight}
         <CornerActionButtons onEyeClick={skipToAnswers} eyeTitle="דלג לתשובות" eyeEnabled={!revealed} onNext={onNext} nextEnabled={revealed} onFontUp={() => bumpFont(0.1)} onFontDown={() => bumpFont(-0.1)} />
       </>
@@ -293,6 +293,7 @@ function LiveQuestionScreen({ pin, session, onTimeUp, onNext }) {
   return (
     <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, flex: 1 }}>
       <QuestionCard
+        key={session.currentIndex}
         q={displayQ}
         revealed={revealed}
         secondsLeft={secondsLeft}

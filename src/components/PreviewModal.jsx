@@ -104,8 +104,8 @@ export default function PreviewModal({ questions, startIndex = 0, onClose, quizI
 
       <div style={{ width: '100%', maxWidth: 1380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
         {isSlide && <SlidePreview item={q} coverImageURL={coverImageURL} />}
-        {!isSlide && fullBackground && <FullBackgroundQuestionCard q={displayQ} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} ltr={ltr} />}
-        {!isSlide && !fullBackground && <QuestionCard q={displayQ} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} ltr={ltr} />}
+        {!isSlide && fullBackground && <FullBackgroundQuestionCard key={index} q={displayQ} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} ltr={ltr} />}
+        {!isSlide && !fullBackground && <QuestionCard key={index} q={displayQ} revealed={revealed} secondsLeft={q.timeLimit} voters={[]} coverImageURL={coverImageURL} manualTimer={manualTimer} ltr={ltr} />}
       </div>
 
       {draft && (
