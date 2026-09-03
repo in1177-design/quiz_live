@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { AvatarStack, pastelFor } from './BarChart.jsx';
 import { ImageIcon } from './icons.jsx';
 
@@ -57,6 +58,17 @@ export function PillTimer({ secondsLeft, totalSeconds }) {
 }
 
 export function AnswerGrid({ options, correctIndex, revealed, voters, ltr, fontScale = 1 }) {
+  const tileRefs = useRef([]);
+  const [tileHeight, setTileHeight] = useState(null);
+
+  // All 4 tiles share one height — the tallest one's natural content height — so a longer
+  // answer (or a bigger fontScale wrapping it to more lines) doesn't leave one row shorter
+  // than the other. Re-measured whenever the text, language, or font size changes.
+  useLayoutEffect(() => {
+    const heights = tileRefs.current.map((el) => el?.scrollHeight || 0);
+    setTileHeight(Math.max(100 * fontScale, ...heights));
+  }, [options, ltr, fontScale]);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, width: '100%', direction: ltr ? 'ltr' : 'rtl' }}>
       {options.map((opt, i) => {
@@ -84,10 +96,14 @@ export function AnswerGrid({ options, correctIndex, revealed, voters, ltr, fontS
                 <AvatarStack voters={voters[i]} />
               </div>
             )}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, minHeight: 100, padding: '16px', borderRadius: 14,
-              background: muted ? '#3e376e' : `var(--opt-${i})`, transition: 'background 0.4s ease',
-            }}>
+            <div
+              ref={(el) => { tileRefs.current[i] = el; }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, minHeight: 100 * fontScale,
+                height: tileHeight || undefined, padding: '16px', borderRadius: 14,
+                background: muted ? '#3e376e' : `var(--opt-${i})`, transition: 'background 0.4s ease',
+              }}
+            >
               {badge}{text}{voteCount}
             </div>
           </div>
